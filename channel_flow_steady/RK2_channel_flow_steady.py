@@ -3,7 +3,7 @@ from core.functions import func
 import time
 import core.singleton_classes as sc
 
-def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None, project=[],theta=None):
+def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None, project=[],theta=None,post_projection=False):
     probDescription = sc.ProbDescription()
     f = func(probDescription)
     dt = probDescription.get_dt()
@@ -190,6 +190,20 @@ def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
 
         time_end = time.clock()
 
+        if post_projection:
+            # post processing projection
+            uhnp1_star = u + dt * (f.urhs(unp1, vnp1))
+            vhnp1_star = v + dt * (f.vrhs(unp1, vnp1))
+
+            f.top_wall(uhnp1_star, vhnp1_star, u_bc_top_wall, v_bc_top_wall)
+            f.bottom_wall(uhnp1_star, vhnp1_star, u_bc_bottom_wall, v_bc_bottom_wall)
+            f.right_wall(uhnp1_star, vhnp1_star, u_bc_right_wall(uhnp1_star[1:-1, -2]),
+                         v_bc_right_wall(vhnp1_star[1:, -1]))
+            f.left_wall(uhnp1_star, vhnp1_star, u_bc_left_wall, v_bc_left_wall)
+
+            _, _, post_press, _ = f.ImQ_bcs(uhnp1_star, vhnp1_star, Coef, pn,p_bcs)
+
+
         # new_press =  4*pn -9*pnm1/ 2 +3 * pnm2 / 2 #second order (working)
 
 
@@ -239,7 +253,7 @@ def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
     if return_stability:
         return True
     else:
-        return True, [iteration_i_2,iteration_np1], True, press[1:-1,1:-1].ravel()
+        return True, [iteration_i_2,iteration_np1], True, post_press[1:-1,1:-1].ravel()
 
 
 # from core.singleton_classes import ProbDescription
