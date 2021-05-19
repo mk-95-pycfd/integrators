@@ -4,7 +4,7 @@ import time
 import statistics
 import singleton_classes as sc
 
-def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=None,project=[1,1],alpha=0.99):
+def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=None,project=[1,1],alpha=0.99,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     f = func(probDescription,'periodic')
@@ -166,11 +166,13 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
         vhnp1 = v + dt*b1*(vrhs1)  + dt*b2*(vrhs2) + dt*b3*(f.vrhs(u3,v3))
 
         unp1,vnp1,press,iter3= f.ImQ(uhnp1,vhnp1,Coef,pn)
-        # post processing pressure projection
-        # unp1r =dt*f.urhs(unp1,vnp1)
-        # vnp1r =dt*f.vrhs(unp1,vnp1)
-        #
-        # _,_,press,_ = f.ImQ_post_processing(unp1r,vnp1r,Coef,pn)
+
+        if post_projection:
+            # post processing projection
+            uhnp1_star = u + dt * (f.urhs(unp1, vnp1))
+            vhnp1_star = v + dt * (f.vrhs(unp1, vnp1))
+
+            _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
         # new_press = 23*pn/6 -25*pnm1/6 +4*pnm2/3 #(second order working)
         # new_press = 13*pn/3 -31*pnm1/6 +11*pnm2/6 #(third order working)
