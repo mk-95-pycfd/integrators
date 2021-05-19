@@ -206,6 +206,8 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
 
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
+        new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
+
         psol.append(press)
         cpu_time = time_end - time_start
         print('cpu_time=',cpu_time)
