@@ -235,3 +235,11 @@ class DIRK2:
             self.a22 = self.theta
             self.b1 = 1.0 / 2.0
             self.b2 = 1.0 / 2.0
+
+        elif self.name =='Crouzeix':
+            # two stages third order accurate
+            self.a11 = 1.0/2.0 + np.sqrt(3.0)/6.0
+            self.a21 = -np.sqrt(3.0)/3.0
+            self.a22 = 1.0/2.0 + np.sqrt(3.0)/6.0
+            self.b1 = 1.0 / 2.0
+            self.b2 = 1.0 / 2.0
