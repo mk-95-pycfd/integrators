@@ -204,7 +204,7 @@ def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
             _, _, post_press, _ = f.ImQ_bcs(uhnp1_star, vhnp1_star, Coef, pn,p_bcs)
 
 
-        # new_press =  4*pn -9*pnm1/ 2 +3 * pnm2 / 2 #second order (working)
+        new_press =  (3*press -pn) / 2 #second order
 
 
 
@@ -253,7 +253,7 @@ def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
     if return_stability:
         return True
     else:
-        return True, [iteration_i_2,iteration_np1], True, post_press[1:-1,1:-1].ravel()
+        return True, [iteration_i_2,iteration_np1], True, unp1[1:-1,1:-1].ravel()
 
 
 # from core.singleton_classes import ProbDescription
