@@ -174,9 +174,7 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
 
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
-        # new_press = 23*pn/6 -25*pnm1/6 +4*pnm2/3 #(second order working)
-        # new_press = 13*pn/3 -31*pnm1/6 +11*pnm2/6 #(third order working)
-        # new_press = 155*pn/24 -277*pnm1/24 +197*pnm2/24 -17*pnm3/8 #(at most third)
+        new_press = 11*press/6 -7*pn/6 +pnm1/3 #(third order working)
 
         time_end = time.clock()
         psol.append(press)
@@ -240,4 +238,4 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
         return is_stable
 
     else:
-        return diff, [iter1,iter2,iter3], is_stable, unp1[1:-1,1:].ravel()
+        return diff, [iter1,iter2,iter3], is_stable, new_press[1:-1,1:].ravel()
