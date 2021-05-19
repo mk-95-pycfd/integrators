@@ -6,7 +6,7 @@ import singleton_classes as sc
 import scipy
 import matplotlib.pyplot as plt
 
-def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, project=[1],alpha=0.9,theta=None):
+def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, project=[1],alpha=0.9,theta=None,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     f = func(probDescription,'periodic')
@@ -164,6 +164,14 @@ def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, 
         unp1, vnp1, press, iter2 = f.ImQ(uhnp1, vhnp1, Coef, pn,tol=1e-10)
         # unp1, vnp1, press, iter2 = f.ImQ(uhnp1, vhnp1, Coef, (3*pn-pnm1)/2,atol=1e-6,tol=1e-16) # midpoint
         # unp1, vnp1, press, iter2 = f.ImQ(uhnp1, vhnp1, Coef, press_stage_2)
+
+        if post_projection:
+            # post processing projection
+            uhnp1_star = u + dt * (f.urhs(unp1, vnp1))
+            vhnp1_star = v + dt * (f.vrhs(unp1, vnp1))
+
+            _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
+
 
         # new_press =  4*pn -9*pnm1/ 2 +3 * pnm2 / 2 #second order (working)
 
