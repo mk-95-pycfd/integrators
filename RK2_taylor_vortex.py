@@ -160,8 +160,6 @@ def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, 
         vhnp1 = v + dt * b1 * (vrhs1) + dt * b2 * (vrhs2)
 
         unp1, vnp1, press, iter2 = f.ImQ(uhnp1, vhnp1, Coef, pn,tol=1e-10)
-        # unp1, vnp1, press, iter2 = f.ImQ(uhnp1, vhnp1, Coef, (3*pn-pnm1)/2,atol=1e-6,tol=1e-16) # midpoint
-        # unp1, vnp1, press, iter2 = f.ImQ(uhnp1, vhnp1, Coef, press_stage_2)
 
         if post_projection:
             # post processing projection
@@ -171,15 +169,10 @@ def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, 
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
 
-        # new_press =  4*pn -9*pnm1/ 2 +3 * pnm2 / 2 #second order (working)
+        new_press =  (3*press -pn) / 2 #second order
 
         iteration_np1+=iter2
 
-        # # post processing projection
-        # unp1r = dt * f.urhs(unp1, vnp1)
-        # vnp1r = dt * f.vrhs(unp1, vnp1)
-        #
-        # _, _, press, _ = f.ImQ_post_processing(unp1r, vnp1r, Coef, press)
         time_end = time.clock()
         psol.append(press)
         cpu_time = time_end - time_start
