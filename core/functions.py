@@ -4,8 +4,8 @@ import scipy.sparse
 import scipy.sparse.linalg
 import pyamg
 import time
-from scipy.optimize import fsolve
-from singleton_classes import RK4, RK3, RK2,DIRK2
+from core.singleton_classes import RK4, RK3, RK2
+
 
 class func:
     def __init__(self, probDescription,bcs_type=None):

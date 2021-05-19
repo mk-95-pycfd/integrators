@@ -1,8 +1,8 @@
 import numpy as np
-from functions import func
+from core.functions import func
 import time
-import statistics
-import singleton_classes as sc
+from core import singleton_classes as sc
+
 
 def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=None,project=[1,1,1],alpha=0.99,post_projection=False):
     # problem description

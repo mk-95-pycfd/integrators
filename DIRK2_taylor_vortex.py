@@ -1,7 +1,7 @@
 import numpy as np
-from functions import func
+from core.functions import func
 import time
-import singleton_classes as sc
+from core import singleton_classes as sc
 from core.analytical_jacobian import Analytic_Jacobian
 from core.sym_residual_functions import SymResidualFunc
 from core.Jacobian_indexing import PeriodicIndexer

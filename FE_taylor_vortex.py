@@ -1,9 +1,8 @@
 import numpy as np
-from functions import func
+from core.functions import func
 import time
-import statistics
-import singleton_classes as sc
-import scipy
+from core import singleton_classes as sc
+
 
 def FE_taylor_vortex (steps=3, return_stability=False,alpha=0.99):
     # problem description

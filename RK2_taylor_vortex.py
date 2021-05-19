@@ -1,10 +1,8 @@
 import numpy as np
-from functions import func
+from core.functions import func
 import time
-import statistics
-import singleton_classes as sc
-import scipy
-import matplotlib.pyplot as plt
+from core import singleton_classes as sc
+
 
 def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, project=[1],alpha=0.9,theta=None,post_projection=False):
     # problem description
