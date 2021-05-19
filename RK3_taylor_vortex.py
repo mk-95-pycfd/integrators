@@ -4,7 +4,7 @@ import time
 import statistics
 import singleton_classes as sc
 
-def error_RK3 (steps = 3,return_stability=False, name='regular',guess=None,project=[1,1],alpha=0.99):
+def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=None,project=[1,1],alpha=0.99):
     # problem description
     probDescription = sc.ProbDescription()
     f = func(probDescription,'periodic')
