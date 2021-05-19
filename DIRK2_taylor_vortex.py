@@ -2,10 +2,10 @@ import numpy as np
 from functions import func
 import time
 import singleton_classes as sc
-from analytical_jacobian import Analytic_Jacobian
-from sym_residual_functions import SymResidualFunc
-from Jacobian_indexing import PeriodicIndexer
-import json
+from core.analytical_jacobian import Analytic_Jacobian
+from core.sym_residual_functions import SymResidualFunc
+from core.Jacobian_indexing import PeriodicIndexer
+
 
 def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=None, project=[1],alpha=0.99,theta=0.5, Tol=1e-8):
     # problem description

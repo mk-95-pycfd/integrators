@@ -1,10 +1,8 @@
 import sympy as sp
-from sympy import IndexedBase,Idx
 import numpy as np
-from scipy.sparse import csr_matrix, lil_matrix, hstack, vstack
+from scipy.sparse import lil_matrix, hstack, vstack
 import  time
-from Jacobian_indexing import PeriodicIndexer
-import matplotlib.pyplot as plt
+
 
 class Analytic_Jacobian:
     def __init__(self,resifual_functions,diff_vars,indicies,stencil,stencil_pts,prob_description,indexer,is_scalar=False):
