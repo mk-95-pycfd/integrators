@@ -7,7 +7,7 @@ from core.sym_residual_functions import SymResidualFunc
 from core.Jacobian_indexing import PeriodicIndexer
 
 
-def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=None, project=[1],alpha=0.99,theta=0.5, Tol=1e-8):
+def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=None, project=[1],alpha=0.99,theta=0.5, Tol=1e-8,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     dt = probDescription.dt
@@ -313,6 +313,14 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
         f.periodic_scalar(press)
 
         time_end = time.clock()
+
+        if post_projection:
+            # post processing projection
+            uhnp1_star = un + dt * (f.urhs(unp1, vnp1))
+            vhnp1_star = vn + dt * (f.vrhs(unp1, vnp1))
+
+            _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
+
         psol.append(press)
         cpu_time = time_end - time_start
         print('        cpu_time=',cpu_time)
