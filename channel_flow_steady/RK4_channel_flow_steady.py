@@ -5,7 +5,7 @@ import core.singleton_classes as sc
 import statistics
 import matplotlib.pyplot as plt
 
-def RK4_channel_flow (steps = 3,return_stability=False, name='regular', guess=None, project=[],alpha=0.99):
+def RK4_channel_flow (steps = 3,return_stability=False, name='regular', guess=None, project=[],alpha=0.99,post_projection=False):
     probDescription = sc.ProbDescription()
     f = func(probDescription)
     dt = probDescription.get_dt()
@@ -241,20 +241,24 @@ def RK4_channel_flow (steps = 3,return_stability=False, name='regular', guess=No
         f.bottom_wall(unp1, vnp1, u_bc_bottom_wall, v_bc_bottom_wall)
         f.right_wall(unp1, vnp1, u_bc_right_wall(unp1[1:-1, -1]),v_bc_right_wall(vnp1[1:, -2]))  # this won't change anything for unp1
         f.left_wall(unp1, vnp1, u_bc_left_wall, v_bc_left_wall)
-        #
-        # # post processing projection
-        # unp1r =unp1+ dt * f.urhs_bcs(unp1, vnp1)
-        # vnp1r =vnp1+ dt * f.vrhs_bcs(unp1, vnp1)
-        #
-        # f.top_wall(unp1r, vnp1r, u_bc_top_wall, v_bc_top_wall)
-        # f.bottom_wall(unp1r, vnp1r, u_bc_bottom_wall, v_bc_bottom_wall)
-        # f.right_wall(unp1r, vnp1r, u_bc_right_wall(unp1r[1:-1, -2]),
-        #              v_bc_right_wall)  # this won't change anything for unp1
-        # f.left_wall(unp1r, vnp1r, u_bc_left_wall, v_bc_left_wall)
-        #
-        # _, _, press, _ = f.ImQ_bcs(unp1r, vnp1r, Coef, pn, p_bcs)
 
         time_end = time.clock()
+
+        if post_projection:
+            # post processing projection
+            uhnp1_star = u + dt * (f.urhs(unp1, vnp1))
+            vhnp1_star = v + dt * (f.vrhs(unp1, vnp1))
+
+            f.top_wall(uhnp1_star, vhnp1_star, u_bc_top_wall, v_bc_top_wall)
+            f.bottom_wall(uhnp1_star, vhnp1_star, u_bc_bottom_wall, v_bc_bottom_wall)
+            f.right_wall(uhnp1_star, vhnp1_star, u_bc_right_wall(uhnp1_star[1:-1, -2]),
+                         v_bc_right_wall(vhnp1_star[1:, -1]))
+            f.left_wall(uhnp1_star, vhnp1_star, u_bc_left_wall, v_bc_left_wall)
+
+            _, _, post_press, _ = f.ImQ_bcs(uhnp1_star, vhnp1_star, Coef, pn,p_bcs)
+
+        new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
+
         psol.append(press)
         cpu_time = time_end - time_start
         print('        cpu_time=', cpu_time)
@@ -294,7 +298,7 @@ def RK4_channel_flow (steps = 3,return_stability=False, name='regular', guess=No
     if return_stability:
         return True
     else:
-        return True, [div_np1], True, press[1:-1, 1:-1].ravel()
+        return True, [div_np1], True, unp1[1:-1, 1:-1].ravel()
 
 
 # from core.singleton_classes import ProbDescription
