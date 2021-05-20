@@ -5,7 +5,7 @@ import core.singleton_classes as sc
 import statistics
 import matplotlib.pyplot as plt
 
-def RK3_channel_flow (steps = 3,return_stability=False, name='heun', guess=None, project=[],alpha=0.99):
+def RK3_channel_flow (steps = 3,return_stability=False, name='heun', guess=None, project=[],alpha=0.99,post_projection=False):
     probDescription = sc.ProbDescription()
     f = func(probDescription)
     dt = probDescription.get_dt()
@@ -213,8 +213,20 @@ def RK3_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
 
         time_end = time.clock()
 
-        # new_press = 23*pn/6 -25*pnm1/6 +4*pnm2/3 #(second order working)
-        #new_press = 13*pn/3 -31*pnm1/6 +11*pnm2/6 #(third order working)
+        if post_projection:
+            # post processing projection
+            uhnp1_star = u + dt * (f.urhs(unp1, vnp1))
+            vhnp1_star = v + dt * (f.vrhs(unp1, vnp1))
+
+            f.top_wall(uhnp1_star, vhnp1_star, u_bc_top_wall, v_bc_top_wall)
+            f.bottom_wall(uhnp1_star, vhnp1_star, u_bc_bottom_wall, v_bc_bottom_wall)
+            f.right_wall(uhnp1_star, vhnp1_star, u_bc_right_wall(uhnp1_star[1:-1, -2]),
+                         v_bc_right_wall(vhnp1_star[1:, -1]))
+            f.left_wall(uhnp1_star, vhnp1_star, u_bc_left_wall, v_bc_left_wall)
+
+            _, _, post_press, _ = f.ImQ_bcs(uhnp1_star, vhnp1_star, Coef, pn,p_bcs)
+
+        new_press = 11*press/6 -7*pn/6 +pnm1/3 #(third order)
 
 
         psol.append(press)
