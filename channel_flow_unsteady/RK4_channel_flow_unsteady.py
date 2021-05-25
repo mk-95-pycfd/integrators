@@ -2,6 +2,7 @@ import numpy as np
 from core.functions import func
 import time
 import core.singleton_classes as sc
+import pyamg
 import statistics
 import matplotlib.pyplot as plt
 
@@ -41,7 +42,11 @@ def RK4_channel_flow_unsteady (steps = 3,return_stability=False, name='regular',
     v_bc_top_wall = lambda xv: 0
     v_bc_bottom_wall = lambda xv: 0
     v_bc_right_wall = lambda v: lambda yv: v
-    v_bc_left_wall = lambda t: lambda yv: np.sin(at(t))
+    v_bc_left_wall = lambda t: lambda yv: 0
+
+    # post processing m'
+    # we only consider the u component of the velocity (check sanderse 2012)
+    m_p = lambda t, y: -np.pi * y * (1 - y) * np.sin(at(t)) * np.cos(t / 2.0)
 
     # pressure
     def pressure_right_wall(p):
@@ -248,16 +253,22 @@ def RK4_channel_flow_unsteady (steps = 3,return_stability=False, name='regular',
 
         if post_projection:
             # post processing projection
-            uhnp1_star = u + dt * (f.urhs(unp1, vnp1))
-            vhnp1_star = v + dt * (f.vrhs(unp1, vnp1))
+            mp_field = np.zeros_like(unp1)
+            mp_field[1:-1, 1] = m_p(t + dt, yu[:, 0])
 
-            f.top_wall(uhnp1_star, vhnp1_star, u_bc_top_wall, v_bc_top_wall)
-            f.bottom_wall(uhnp1_star, vhnp1_star, u_bc_bottom_wall, v_bc_bottom_wall)
-            f.right_wall(uhnp1_star, vhnp1_star, u_bc_right_wall(uhnp1_star[1:-1, -2]),
-                         v_bc_right_wall(vhnp1_star[1:, -1]))
-            f.left_wall(uhnp1_star, vhnp1_star, u_bc_left_wall(t+2*dt), v_bc_left_wall(t+2*dt))
+            unp1_rhs = f.urhs_bcs(unp1, vnp1)
+            vnp1_rhs = f.vrhs_bcs(unp1, vnp1)
+            rhs_pp = np.zeros_like(pn)
+            rhs_pp = f.div(unp1_rhs, vnp1_rhs) - mp_field
 
-            _, _, post_press, _ = f.ImQ_bcs(uhnp1_star, vhnp1_star, Coef, pn,p_bcs)
+            ml = pyamg.ruge_stuben_solver(Coef)
+            ptmp = ml.solve(rhs_pp[1:-1, 1:-1], tol=1e-12)
+
+            nx = probDescription.nx
+            ny = probDescription.ny
+            post_press = np.zeros([ny + 2, nx + 2])
+            post_press[1:-1, 1:-1] = ptmp.reshape([ny, nx])
+            p_bcs(post_press)
 
         new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
 
