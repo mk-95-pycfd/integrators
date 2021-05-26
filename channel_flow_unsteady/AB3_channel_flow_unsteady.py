@@ -4,7 +4,7 @@ import time
 from core import singleton_classes as sc
 import pyamg
 
-def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha=0.9,theta=None,post_projection=False):
+def AB3_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha=0.9,theta=None,post_projection=False):
     probDescription = sc.ProbDescription()
     f = func(probDescription)
     dt = probDescription.get_dt()
@@ -99,12 +99,15 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
         pn = np.zeros_like(u)
         pnm1 = np.zeros_like(u)
         # pnm2 = np.zeros_like(u)
-        if count <= 1: # Starting the Adam-Bashforth with RK2 for the first two steps.
+        if count <= 2: # Starting the Adam-Bashforth with RK2 for the first two steps.
             # rk coefficients
-            RK2 = sc.RK2(name, theta)
-            a21 = RK2.a21
-            b1 = RK2.b1
-            b2 = RK2.b2
+            RK3 = sc.RK3(name)
+            a21 = RK3.a21
+            a31 = RK3.a31
+            a32 = RK3.a32
+            b1 = RK3.b1
+            b2 = RK3.b2
+            b3 = RK3.b3
 
             ## stage 1
             print('    Stage 1:')
@@ -157,8 +160,37 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             urhs2 = f.urhs_bcs(u2, v2)
             vrhs2 = f.vrhs_bcs(u2, v2)
 
-            uhnp1 = u + dt * b1 * (urhs1) + dt * b2 * (urhs2)
-            vhnp1 = v + dt * b1 * (vrhs1) + dt * b2 * (vrhs2)
+            ## stage 3
+            print('    Stage 3:')
+            print('    --------')
+            uh3 = u + a31 * dt * (urhs1) + a32 * dt * (urhs2)
+            vh3 = v + a31 * dt * (vrhs1) + a32 * dt * (vrhs2)
+
+            f.top_wall(uh3, vh3, u_bc_top_wall, v_bc_top_wall)
+            f.bottom_wall(uh3, vh3, u_bc_bottom_wall, v_bc_bottom_wall)
+            f.right_wall(uh3, vh3, u_bc_right_wall(uh3[1:-1, -2]),
+                         v_bc_right_wall(vh3[1:, -1]))  # this won't change anything for u2
+            f.left_wall(uh3, vh3, u_bc_left_wall(t + (a31 + a32) * dt), v_bc_left_wall(t + (a31 + a32) * dt))
+
+            press_stage_3 = np.zeros([nx + 2, ny + 2])
+            print('        pressure projection stage{} = True'.format(2))
+            u3, v3, press_stage_3, iter3 = f.ImQ_bcs(uh3, vh3, Coef, pn, p_bcs)
+            iteration_i_3 = iter3
+            print('        iterations stage 2 = ', iter3)
+            # apply bcs
+            f.top_wall(u3, v3, u_bc_top_wall, v_bc_top_wall)
+            f.bottom_wall(u3, v3, u_bc_bottom_wall, v_bc_bottom_wall)
+            f.right_wall(u3, v3, u_bc_right_wall(u3[1:-1, -1]),
+                         v_bc_right_wall(v3[1:, -2]))  # this won't change anything for u2
+            f.left_wall(u3, v3, u_bc_left_wall(t + a21 * dt), v_bc_left_wall(t + a21 * dt))
+
+            div3 = np.linalg.norm(f.div(u3, v3).ravel())
+            print('        divergence of u3 = ', div3)
+            urhs3 = f.urhs_bcs(u3, v3)
+            vrhs3 = f.vrhs_bcs(u3, v3)
+
+            uhnp1 = u + dt * b1 * (urhs1) + dt * b2 * (urhs2) + dt * b3 * (urhs3)
+            vhnp1 = v + dt * b1 * (vrhs1) + dt * b2 * (vrhs2) + dt * b3 * (vrhs3)
 
             f.top_wall(uhnp1, vhnp1, u_bc_top_wall, v_bc_top_wall)
             f.bottom_wall(uhnp1, vhnp1, u_bc_bottom_wall, v_bc_bottom_wall)
@@ -192,17 +224,24 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             unm1 = usol[-2].copy()
             vnm1 = vsol[-2].copy()
 
+            unm2 = usol[-3].copy()
+            vnm2 = vsol[-3].copy()
+
             urhsn = f.urhs(un, vn)
             vrhsn = f.vrhs(un, vn)
 
             urhsnm1 = f.urhs(unm1, vnm1)
             vrhsnm1 = f.vrhs(unm1, vnm1)
 
-            b1 = 3.0/2
-            b2 = -1.0/2
+            urhsnm2 = f.urhs(unm2, vnm2)
+            vrhsnm2 = f.vrhs(unm2, vnm2)
+
+            b1 = 23.0/12
+            b2 = -16.0/12
+            b3 = 5.0/12
             # Adam Bashforth two step method
-            uhnp1 = un + dt * ( b1 * (urhsn) + b2 * (urhsnm1))
-            vhnp1 = vn + dt * ( b1 * (vrhsn) + b2 * (vrhsnm1))
+            uhnp1 = un + dt * ( b1 * (urhsn) + b2 * (urhsnm1) + b3 * (urhsnm2))
+            vhnp1 = vn + dt * ( b1 * (vrhsn) + b2 * (vrhsnm1) + b3 * (vrhsnm2))
 
             f.top_wall(uhnp1, vhnp1, u_bc_top_wall, v_bc_top_wall)
             f.bottom_wall(uhnp1, vhnp1, u_bc_bottom_wall, v_bc_bottom_wall)
@@ -236,7 +275,8 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             post_press = np.zeros([ny + 2, nx + 2])
             post_press[1:-1, 1:-1] = ptmp.reshape([ny, nx])
             p_bcs(post_press)
-        new_press = (3 * press - pn) / 2  # second order
+
+        new_press = 11*press/6 -7*pn/6 +pnm1/3 #(third order)
 
         iteration_np1+=iter2
         t+=dt
@@ -259,10 +299,13 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
         # # plt.contourf(usol[-1][1:-1,1:])
         gradpx = (psol[-1][1:-1, 1:] - psol[-1][1:-1, :-1]) / dx
 
-        maxbound = max(gradpx[1:-1, 1:].ravel())
-        minbound = min(gradpx[1:-1, 1:].ravel())
+        # maxbound = max(gradpx[1:-1, 1:].ravel())
+        maxbound = max(unp1[1:-1, 1:].ravel())
+        # minbound = min(gradpx[1:-1, 1:].ravel())
+        minbound = min(unp1[1:-1, 1:].ravel())
         # plot of the pressure gradient in order to make sure the solution is correct
-        # if count%1 == 0:
+        # if count%100 == 0:
+        #     print("a({})=".format(t),at(t))
         #     # plt.imshow(gradpx[1:-1,1:],origin='bottom',cmap='jet',vmax=maxbound, vmin=minbound)
         #     plt.imshow(unp1[1:-1,1:],origin='bottom',cmap='jet',vmax=maxbound, vmin=minbound)
         #     # plt.contourf((psol[-1][1:-1,1:] - psol[-1][1:-1,:-1])/dx)
@@ -274,10 +317,10 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
     if return_stability:
         return True
     else:
-        return True, [iteration_i_2, iteration_np1], True, unp1[1:-1, 1:-1].ravel()
+        return True, [iteration_i_2, iteration_np1], True, new_press[1:-1, 1:-1].ravel()
 
 # import matplotlib.pyplot as plt
 # from core.singleton_classes import ProbDescription
 #
-# probDescription = ProbDescription(N=[128,16],L=[4,1],μ =0.01,dt = 0.001)
-# AB2_channel_flow_unsteady(steps=100, return_stability=False, name='heun',alpha=0.9,theta=None,post_projection=False)
+# probDescription = ProbDescription(N=[128,16],L=[4,1],μ =0.01,dt = 0.01)
+# AB3_channel_flow_unsteady(steps=500, return_stability=False, name='heun',alpha=0.9,theta=None,post_projection=False)
