@@ -211,7 +211,7 @@ def AB3_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
                          v_bc_right_wall(vnp1[1:, -2]))  # this won't change anything for unp1
             f.left_wall(unp1, vnp1, u_bc_left_wall(t+dt), v_bc_left_wall(t+dt))
 
-        elif count > 1:
+        elif count > 2:
             # switch to two step Adam Bashforth
             print("Adam-Bashforth 2 Steps")
             print("----------------------")
