@@ -239,7 +239,7 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
         new_press = (3 * press - pn) / 2  # second order
 
         iteration_np1+=iter2
-
+        t+=dt
         time_end = time.clock()
         psol.append(press)
         cpu_time = time_end - time_start
