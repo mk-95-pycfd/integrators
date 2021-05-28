@@ -182,7 +182,7 @@ def AB3_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             f.bottom_wall(u3, v3, u_bc_bottom_wall, v_bc_bottom_wall)
             f.right_wall(u3, v3, u_bc_right_wall(u3[1:-1, -1]),
                          v_bc_right_wall(v3[1:, -2]))  # this won't change anything for u2
-            f.left_wall(u3, v3, u_bc_left_wall(t + a21 * dt), v_bc_left_wall(t + a21 * dt))
+            f.left_wall(u3, v3, u_bc_left_wall(t + (a31 + a32) * dt), v_bc_left_wall(t + (a31 + a32) * dt))
 
             div3 = np.linalg.norm(f.div(u3, v3).ravel())
             print('        divergence of u3 = ', div3)
@@ -199,7 +199,7 @@ def AB3_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             f.left_wall(uhnp1, vhnp1, u_bc_left_wall(t+dt), v_bc_left_wall(t+dt))
 
             # unp1, vnp1, press, iter2 = f.ImQ_bcs(uhnp1, vhnp1, Coef, pn,p_bcs)
-            unp1, vnp1, press, iter2 = f.ImQ_bcs(uhnp1, vhnp1, Coef, press_stage_2, p_bcs)
+            unp1, vnp1, press, iter2 = f.ImQ_bcs(uhnp1, vhnp1, Coef, pn, p_bcs)
 
             iteration_np1 += iter2
             print('iter_np1=', iter2)
@@ -227,14 +227,14 @@ def AB3_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             unm2 = usol[-3].copy()
             vnm2 = vsol[-3].copy()
 
-            urhsn = f.urhs(un, vn)
-            vrhsn = f.vrhs(un, vn)
+            urhsn = f.urhs_bcs(un, vn)
+            vrhsn = f.vrhs_bcs(un, vn)
 
-            urhsnm1 = f.urhs(unm1, vnm1)
-            vrhsnm1 = f.vrhs(unm1, vnm1)
+            urhsnm1 = f.urhs_bcs(unm1, vnm1)
+            vrhsnm1 = f.vrhs_bcs(unm1, vnm1)
 
-            urhsnm2 = f.urhs(unm2, vnm2)
-            vrhsnm2 = f.vrhs(unm2, vnm2)
+            urhsnm2 = f.urhs_bcs(unm2, vnm2)
+            vrhsnm2 = f.vrhs_bcs(unm2, vnm2)
 
             b1 = 23.0/12
             b2 = -16.0/12
