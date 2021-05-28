@@ -256,8 +256,20 @@ def RK4_channel_flow_unsteady (steps = 3,return_stability=False, name='regular',
             mp_field = np.zeros_like(unp1)
             mp_field[1:-1, 1] = m_p(t + dt, yu[:, 0])
 
-            unp1_rhs = f.urhs_bcs(unp1, vnp1)
-            vnp1_rhs = f.vrhs_bcs(unp1, vnp1)
+            # apply bcs on urhs_bcs and vrhs_bcs
+            # -----------------------------------
+            # intermediate velocity used to apply bcs
+            unp1_inter = unp1 + dt * f.urhs_bcs(unp1, vnp1)
+            vnp1_inter = vnp1 + dt * f.vrhs_bcs(unp1, vnp1)
+            # apply bcs to the intermediate velocity
+            f.top_wall(unp1_inter, vnp1_inter, u_bc_top_wall, v_bc_top_wall)
+            f.bottom_wall(unp1_inter, vnp1_inter, u_bc_bottom_wall, v_bc_bottom_wall)
+            f.right_wall(unp1_inter, vnp1_inter, u_bc_right_wall(unp1_inter[1:-1, -2]),
+                         v_bc_right_wall(vnp1_inter[1:, -1]))
+            f.left_wall(unp1_inter, vnp1_inter, u_bc_left_wall(t + 2 * dt), v_bc_left_wall(t + 2 * dt))
+            # now only use the u and v rhs
+            unp1_rhs = (unp1_inter - unp1) / dt
+            vnp1_rhs = (vnp1_inter - vnp1) / dt
             rhs_pp = np.zeros_like(pn)
             rhs_pp = f.div(unp1_rhs, vnp1_rhs) - mp_field
 
