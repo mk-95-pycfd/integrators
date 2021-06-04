@@ -18,8 +18,29 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
     uexact = lambda a, b, x, y, t: 1 - np.cos(a*(x - t))*np.sin(b*(y - t))*np.exp(-(a**2 + b**2)*μ*t)
     vexact = lambda a, b, x, y, t: 1 + np.sin(a*(x - t))*np.cos(b*(y - t))*np.exp(-(a**2 + b**2)*μ*t)
 
+    dpdxexact = lambda x, t: -np.pi * np.exp(-16 * np.pi ** 2 * μ * t) * np.sin(np.pi * (4 * t - 4 * x))
+
+    integ_dpdx_exact = lambda x, t1, t2: 1 / dt * (np.pi * (
+            np.cos(4 * np.pi * t1 - 4 * np.pi * x) / (1024 * np.pi ** 5 * μ ** 4 * np.exp(16 * np.pi ** 2 * t1 * μ) \
+                                                      + 64 * np.pi ** 3 * μ ** 2 * np.exp(
+                16 * np.pi ** 2 * t1 * μ)) + np.sin(4 * np.pi * t1 - 4 * np.pi * x) / (
+                    256 * np.pi ** 4 * μ ** 3 * np.exp(16 * np.pi ** 2 * t1 * μ) \
+                    + 16 * np.pi ** 2 * μ * np.exp(16 * np.pi ** 2 * t1 * μ)) - np.exp(
+        -16 * np.pi ** 2 * t1 * μ) * np.sin(4 * np.pi * t1 - 4 * np.pi * x) / (16 * np.pi ** 2 * μ) \
+            - np.exp(-16 * np.pi ** 2 * t1 * μ) * np.cos(4 * np.pi * t1 - 4 * np.pi * x) / (
+                    64 * np.pi ** 3 * μ ** 2)) - np.pi * (np.cos(4 * np.pi * t2 - 4 * np.pi * x) / (
+            1024 * np.pi ** 5 * μ ** 4 * np.exp(16 * np.pi ** 2 * t2 * μ) \
+            + 64 * np.pi ** 3 * μ ** 2 * np.exp(16 * np.pi ** 2 * t2 * μ)) + np.sin(
+        4 * np.pi * t2 - 4 * np.pi * x) / (256 * np.pi ** 4 * μ ** 3 * np.exp(
+        16 * np.pi ** 2 * t2 * μ) + 16 * np.pi ** 2 * μ * np.exp(16 * np.pi ** 2 * t2 * μ)) \
+                                                          - np.exp(-16 * np.pi ** 2 * t2 * μ) * np.sin(
+                4 * np.pi * t2 - 4 * np.pi * x) / (16 * np.pi ** 2 * μ) - np.exp(-16 * np.pi ** 2 * t2 * μ) * np.cos(
+                4 * np.pi * t2 - 4 * np.pi * x) / (64 * np.pi ** 3 * μ ** 2)))
+
+    #     # define some boiler plate
     t = 0.0
     tend = steps
+    end_time = steps * dt
     count = 0
     print('dt=',dt)
 
@@ -262,7 +283,16 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         #     plt.colorbar()
         #     plt.show()
         count+=1
-    diff = np.linalg.norm(uexact(a,b,xu,yu,t).ravel()-unp1[1:-1,1:].ravel(),np.inf)
+    # error between the exact pressure gradient average and the pseudo-pressure
+    # ---------------------------------------------------------------------------
+    gradpx = lambda phi: ((phi[1:-1, 1:] - phi[1:-1, :-1]) / dx)
+
+    average_exact_dpdx = integ_dpdx_exact(xu, end_time - dt, end_time)
+    average_dpdx = gradpx(press)
+
+    diff = np.linalg.norm(average_exact_dpdx.ravel() - average_dpdx.ravel(), np.inf)
+    # plt.semilogy(xu[2,:],np.abs(average_exact_dpdx - average_dpdx)[2,:])
+    # plt.show()
     print('        error={}'.format(diff))
     if return_stability:
         return is_stable
