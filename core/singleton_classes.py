@@ -243,3 +243,54 @@ class DIRK2:
             self.a22 = 1.0/2.0 + np.sqrt(3.0)/6.0
             self.b1 = 1.0 / 2.0
             self.b2 = 1.0 / 2.0
+
+class DIRK3:
+    def __init__(self, name, theta=None):
+        self.name = name
+        self.theta = theta
+        self.coefs()
+
+    def coefs(self):
+        if self.name =='3stages':
+            # three stages third order accurate
+            x = 0.4358665215
+            self.a11 = x
+            self.a21 = (1-x)/2
+            self.a22 = x
+            self.a31 = -3*x**2/2 + 4*x -1/4
+            self.a32 = 3*x**2/2 -5*x + 5/4
+            self.a33 = x
+            self.b1 = -3*x**2/2 + 4*x -1/4
+            self.b2 = 3*x**2/2 -5*x + 5/4
+            self.b3 = x
+
+            # print("b1= {}, b2= {}, b3= {}".format(self.b1,self.b2,self.b3))
+
+        elif self.name =='3stages4':
+            # three stages third order accurate
+            # x = 1.06858
+            # x = 0.30254
+            x = 0.12889
+            self.a11 = x
+            self.a21 = 1/2-x
+            self.a22 = x
+            self.a31 = 2*x
+            self.a32 = 1-4*x
+            self.a33 = x
+            self.b1 = 1/6/(1-2*x)**2
+            self.b2 = (3*(1-2*x)**2-1)/(3*(1-2*x)**2)
+            self.b3 = 1/6/(1-2*x)**2
+
+            # print("b1= {}, b2= {}, b3= {}".format(self.b1,self.b2,self.b3))
+
+        elif self.name =='Crouzeix34':
+            x = 2*np.cos(np.pi/18)/np.sqrt(3)
+            self.a11 = (1+x)/2
+            self.a21 = -x/2
+            self.a22 = (1+x)/2
+            self.a31 = 1+x
+            self.a32 = -(1+2*x)
+            self.a33 = (1+x)/2
+            self.b1 = 1/6/x**2
+            self.b2 = 1-1/(3*x**2)
+            self.b3 = 1/6/x**2
