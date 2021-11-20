@@ -152,7 +152,7 @@ class func:
             ml = pyamg.ruge_stuben_solver(J)
             residuals = []
             tic_linear_solve = time.time()
-            delta = ml.solve(-F,x0=np.zeros_like(F), maxiter=1000, tol= Tol, residuals=residuals)
+            delta = ml.solve(-F,x0=np.zeros_like(F), maxiter=1000, tol= 1e-3 * Tol, residuals=residuals)
             toc_linear_solve = time.time()
             info['linear_solve_eval_time'].append(toc_linear_solve-tic_linear_solve)
             info["non-linear-iterations_res"][non_linear_iterations] = residuals
