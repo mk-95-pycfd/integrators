@@ -109,7 +109,7 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
             ## stage 1
             print('    Stage 1:')
             print('    --------')
-            time_start = time.clock()
+            time_start = time.time()
             u1 = u.copy()
             v1 = v.copy()
 
@@ -240,7 +240,7 @@ def AB2_channel_flow_unsteady(steps=3, return_stability=False, name='heun',alpha
 
         iteration_np1+=iter2
         t+=dt
-        time_end = time.clock()
+        time_end = time.time()
         psol.append(press)
         cpu_time = time_end - time_start
         print('cpu_time=', cpu_time)

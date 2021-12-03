@@ -98,7 +98,7 @@ def FE_channel_flow_unsteady (steps = 3,return_stability=False,alpha=0.99):
         v = vsol[-1].copy()
         pn = np.zeros_like(u)
         pnm1 =  np.zeros_like(u)
-        time_start = time.clock()
+        time_start = time.time()
 
         uhnp1 = u + dt*f.urhs_bcs(u, v)
         vhnp1 = v + dt*f.vrhs_bcs(u,v)
@@ -119,7 +119,7 @@ def FE_channel_flow_unsteady (steps = 3,return_stability=False,alpha=0.99):
         f.right_wall(unp1, vnp1, u_bc_right_wall(unp1[1:-1, -1]), v_bc_right_wall(vnp1[1:,-2])) # this won't change anything for vnp1
         f.left_wall(unp1, vnp1, u_bc_left_wall(t+dt), v_bc_left_wall(t+dt))
 
-        time_end = time.clock()
+        time_end = time.time()
         psol.append(press)
         cpu_time = time_end - time_start
         print('        cpu_time=',cpu_time)

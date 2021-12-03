@@ -171,7 +171,7 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='qz',guess=None, p
 
     while count < tend:
         print('timestep:{}'.format(count+1))
-        time_start = time.clock()
+        time_start = time.time()
         un = usol[-1].copy()
         vn = vsol[-1].copy()
         pn = psol[-1].copy()
@@ -327,7 +327,7 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='qz',guess=None, p
         f.periodic_v(vnp1)
         f.periodic_scalar(press)
 
-        time_end = time.clock()
+        time_end = time.time()
 
         if post_projection:
             # post processing projection

@@ -133,7 +133,7 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
             d3 = 1
             f1x,f1y,f2x,f2y =  f.Guess([pn,pnm1],order=None,integ='RK3',type=name)
 
-        time_start = time.clock()
+        time_start = time.time()
         print('    Stage 1:')
         print('    --------')
         u1 = u.copy()
@@ -154,7 +154,7 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
 
         if d2 == 1:
             print('        pressure projection stage{} = True'.format(2))
-            u2,v2,_,iter1 = f.ImQ(uh2,vh2,Coef,pn)
+            u2,v2,phi2,iter1 = f.ImQ(uh2,vh2,Coef,pn)
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             u2 = uh2
@@ -173,7 +173,7 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
 
         if d3 == 1:
             print('        pressure projection stage{} = True'.format(3))
-            u3,v3,_,iter2 = f.ImQ(uh3,vh3,Coef,pn)
+            u3,v3,phi3,iter2 = f.ImQ(uh3,vh3,Coef,pn)
             print('        iterations stage 3 = ', iter2)
 
         elif d3 == 0:
@@ -194,9 +194,23 @@ def RK3_taylor_vortex (steps = 3,return_stability=False, name='regular',guess=No
 
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
-        new_press = 11*press/6 -7*pn/6 +pnm1/3 #(third order working)
+        # new_press = 11*press/6 -7*pn/6 +pnm1/3 #(third order working)
 
-        time_end = time.clock()
+        # alpha = (-3*a21**2*a32/2+2*a21*a32-(a31+a32)/2)/(a21**2*a32*(3*a21/2-1))
+        # beta = 1/(2*a21*a32*(3*a21/2-1))
+        # gamma = (3*a21-3)/(3*a21/2-1)
+
+        # alpha = -2/a21 + (a31+a32)/(2*a21**2*a32)
+        # beta = -1 / (2 * a21 * a32 )
+        # gamma = 3
+
+        alpha = (-9*a21**2*a32+2*a21*a32-(a31+a32)/2)/(a21**2*a32*(9*a21-1))
+        beta = 1/(2*a21*a32*(9*a21-1))
+        gamma = (18*a21-3)/(9*a21-1)
+
+        new_press = alpha*phi2 + beta * phi3 + gamma*press #(third order using stages)
+
+        time_end = time.time()
         psol.append(press)
         cpu_time = time_end - time_start
         print('        cpu_time=',cpu_time)
