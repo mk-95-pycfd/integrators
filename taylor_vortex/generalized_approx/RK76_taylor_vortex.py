@@ -4,7 +4,7 @@ import time
 from core import singleton_classes as sc
 
 
-def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=None,project=[1,1,1],alpha=0.99,post_projection=False):
+def RK76_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=None,project=[1,1,1,1,1,1,1],alpha=0.99,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     f = func(probDescription,'periodic')
@@ -101,17 +101,35 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
     print('ken_new = ',ken_new)
     print('ken_exc = ',ken_exact)
     while count < tend:
-        RK4 = sc.RK4(name)
-        a21 = RK4.a21
-        a31 = RK4.a31
-        a32 = RK4.a32
-        a41 = RK4.a41
-        a42 = RK4.a42
-        a43 = RK4.a43
-        b1 = RK4.b1
-        b2 = RK4.b2
-        b3 = RK4.b3
-        b4 = RK4.b4
+        RK76 = sc.RK76(name)
+        a21 = RK76.a21
+        a31 = RK76.a31
+        a32 = RK76.a32
+        a41 = RK76.a41
+        a42 = RK76.a42
+        a43 = RK76.a43
+        a51 = RK76.a51
+        a52 = RK76.a52
+        a53 = RK76.a53
+        a54 = RK76.a54
+        a61 = RK76.a61
+        a62 = RK76.a62
+        a63 = RK76.a63
+        a64 = RK76.a64
+        a65 = RK76.a65
+        a71 = RK76.a71
+        a72 = RK76.a72
+        a73 = RK76.a73
+        a74 = RK76.a74
+        a75 = RK76.a75
+        a76 = RK76.a76
+        b1  = RK76.b1
+        b2  = RK76.b2
+        b3  = RK76.b3
+        b4  = RK76.b4
+        b5  = RK76.b5
+        b6  = RK76.b6
+        b7  = RK76.b7
         print('timestep:{}'.format(count+1))
         print('-----------')
         u = usol[-1].copy()
@@ -120,6 +138,9 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         pnm1 =  np.zeros_like(u)
         pnm2 =  np.zeros_like(u)
         pnm3 = np.zeros_like(u)
+        pnm4 = np.zeros_like(u)
+        pnm5 = np.zeros_like(u)
+        pnm6 = np.zeros_like(u)
 
         f1x = np.zeros_like(pn)
         f1y = np.zeros_like(pn)
@@ -127,21 +148,23 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         f2y = np.zeros_like(pn)
         f3x = np.zeros_like(pn)
         f3y = np.zeros_like(pn)
-        if count >4:
+        if count >7:
             pn = psol[-1].copy()
             pnm1 = psol[-2].copy()
             pnm2 = psol[-3].copy()
             pnm3 = psol[-4].copy()
+            pnm4 = psol[-5].copy()
+            pnm5 = psol[-6].copy()
+            pnm6 = psol[-7].copy()
+            d2,d3,d4,d5,d6,d7 = project
 
-            f1x,f1y,f2x,f2y,f3x,f3y =  f.Guess([pn,pnm1,pnm2,pnm3],order=guess,integ='RK4',type=name)
-
-            d2,d3,d4 = project
-
-        elif count <= 4: # compute pressures for 2 time steps
+        elif count <= 7: # compute pressures for 2 time steps
             d2 = 1
             d3 = 1
             d4 = 1
-            f1x,f1y,f2x,f2y,f3x,f3y =  f.Guess([pn,pnm1,pnm2,pnm3],order=None,integ='RK4',type=name)
+            d5 = 1
+            d6 = 1
+            d7 = 1
 
         ## stage 1
         print('    Stage 1:')
@@ -160,16 +183,21 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         ## stage 2
         print('    Stage 2:')
         print('    --------')
-        uh2 = u + a21 * dt * (urhs1 - f1x)
-        vh2 = v + a21 * dt * (vrhs1 - f1y)
+        uh2 = u + a21 * dt * urhs1
+        vh2 = v + a21 * dt * vrhs1
 
         if d2 == 1:
             print('        pressure projection stage{} = True'.format(2))
-            u2, v2, _, iter1 = f.ImQ(uh2, vh2, Coef, pn)
+            u2, v2, p2, iter1 = f.ImQ(uh2, vh2, Coef, pn)
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
-            u2 = uh2
-            v2 = vh2
+            if guess == "third":
+                p_approx = ((49 *a21)/20) *pn + (-((71 * a21)/20))*pnm1 +((79 *a21)/20)*pnm2 + (-((163 *a21)/60))*pnm3 + ((31 *a21)/30)*pnm4 + (-(a21/6))*pnm5
+                # p_approx =  (11*a21/6 * pn - 7*a21/6 * pnm1 + a21/3 * pnm2)
+            else:
+                p_approx = 0
+            u2 = uh2 - dt * f.Gpx(p_approx)
+            v2 = vh2 - dt * f.Gpy(p_approx)
         div2 = np.linalg.norm(f.div(u2, v2).ravel())
         print('        divergence of u2 = ', div2)
 
@@ -179,17 +207,25 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         urhs2 = f.urhs(u2, v2)
         vrhs2 = f.vrhs(u2, v2)
 
-        uh3 = u + dt * (a31 * (urhs1 - f1x) + a32 * (urhs2 - f2x))
-        vh3 = v + dt * (a31 * (vrhs1 - f1y) + a32 * (vrhs2 - f2y))
+        uh3 = u + dt * (a31 * urhs1  + a32 * urhs2)
+        vh3 = v + dt * (a31 * vrhs1  + a32 * vrhs2)
 
         if d3 == 1:
             print('        pressure projection stage{} = True'.format(3))
-            u3, v3, _, iter2 = f.ImQ(uh3, vh3, Coef, pn)
+            u3, v3, p3, iter2 = f.ImQ(uh3, vh3, Coef, pn)
             print('        iterations stage 3 = ', iter2)
 
         elif d3 == 0:
-            u3 = uh3
-            v3 = vh3
+            if guess == "third":
+                c3 = a32 + a31
+                p_approx =  (7/180 * (116 *a21 *a32 + 63 *c3)) * pn + (-(116/9) *a21 *a32 - (71 *c3)/20)*pnm1 +((589 *a21 *a32)/36 + (79 *c3)/20)*pnm2 \
+                            + (-(427/36)*a21 *a32 - (163 *c3)/60) *pnm3 + ((167 *a21 *a32)/36 + (31 *c3)/30)*pnm4 +(-(137/180) *a21 *a32 - c3/6)*pnm5
+                # p_approx =  ((11*c3/6 + 2 *a32*a21)*pn + (-7*(a32+a31)/6 - 3 * a32*a21) * pnm1 + (c3/3 + a32*a21)*pnm2)
+            else:
+                p_approx = 0
+
+            u3 = uh3 - dt * f.Gpx(p_approx)
+            v3 = vh3 - dt * f.Gpy(p_approx)
         div3 = np.linalg.norm(f.div(u3, v3).ravel())
         print('        divergence of u3 = ', div3)
 
@@ -199,23 +235,124 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         urhs3 = f.urhs(u3, v3)
         vrhs3 = f.vrhs(u3, v3)
 
-        uh4 = u + dt * (a41 * (urhs1 - f1x) + a42 * (urhs2 -f2x) + a43 * (urhs3 -f3x) )
-        vh4 = v + dt * (a41 * (vrhs1 - f1y) + a42 * (vrhs2 -f2y) + a43 * (vrhs3 -f3y) )
+        uh4 = u + dt * (a41 * urhs1 + a42 * urhs2 + a43 * urhs3 )
+        vh4 = v + dt * (a41 * vrhs1 + a42 * vrhs2 + a43 * vrhs3 )
 
         if d4 == 1:
             print('        pressure projection stage{} = True'.format(4))
-            u4, v4, _, iter4 = f.ImQ(uh4, vh4, Coef, pn)
+            u4, v4, p4, iter4 = f.ImQ(uh4, vh4, Coef, pn)
             print('        iterations stage 4 = ', iter4)
 
         elif d4 == 0:
-            u4 = uh4
-            v4 = vh4
+            if guess == "third":
+                c4 = a41 + a42 + a43
+                sum1 = a42 * a21 + a43 * (a31 + a32)
+                sum2 = a43 * a32 * a21
+                p_approx =  ((11*c4/6 + 2 * sum1 + sum2)*pn + (-7*c4/6 -3*sum1-2*sum2)*pnm1 + (c4/3 + sum1 +sum2) * pnm2)
+            else:
+                p_approx = 0
+
+            u4 = uh4 -dt * f.Gpx(p_approx)
+            v4 = vh4 -dt * f.Gpy(p_approx)
 
         div4 = np.linalg.norm(f.div(u4, v4).ravel())
         print('        divergence of u4 = ', div4)
 
-        uhnp1 = u + dt*b1*(urhs1)  + dt*b2*(urhs2) + dt*b3*(urhs3) +  dt*b4*(f.urhs(u4,v4))
-        vhnp1 = v + dt*b1*(vrhs1)  + dt*b2*(vrhs2) + dt*b3*(vrhs3) +  dt*b4*(f.vrhs(u4,v4))
+        ## stage 5
+        print('    Stage 5:')
+        print('    --------')
+        urhs4 = f.urhs(u4, v4)
+        vrhs4 = f.vrhs(u4, v4)
+
+        uh5 = u + dt * (a51 * urhs1 + a52 * urhs2 + a53 * urhs3 + a54 * urhs4)
+        vh5 = v + dt * (a51 * vrhs1 + a52 * vrhs2 + a53 * vrhs3 + a54 * vrhs4)
+
+        if d5 == 1:
+            print('        pressure projection stage{} = True'.format(5))
+            u5, v5, p5, iter5 = f.ImQ(uh5, vh5, Coef, pn)
+            print('        iterations stage 5 = ', iter5)
+
+        elif d5 == 0:
+            # todo: need to change these
+            if guess == "third":
+                c4 = a41 + a42 + a43
+                sum1 = a42 * a21 + a43 * (a31 + a32)
+                sum2 = a43 * a32 * a21
+                p_approx = ((11 * c4 / 6 + 2 * sum1 + sum2) * pn + (-7 * c4 / 6 - 3 * sum1 - 2 * sum2) * pnm1 + (
+                            c4 / 3 + sum1 + sum2) * pnm2)
+            else:
+                p_approx = 0
+
+            u5 = uh5 - dt * f.Gpx(p_approx)
+            v5 = vh5 - dt * f.Gpy(p_approx)
+
+        div5 = np.linalg.norm(f.div(u5, v5).ravel())
+        print('        divergence of u5 = ', div5)
+
+        ## stage 6
+        print('    Stage 6:')
+        print('    --------')
+        urhs5 = f.urhs(u5, v5)
+        vrhs5 = f.vrhs(u5, v5)
+
+        uh6 = u + dt * (a61 * urhs1 + a62 * urhs2 + a63 * urhs3 + a64 * urhs4 + a65 * urhs5)
+        vh6 = v + dt * (a61 * vrhs1 + a62 * vrhs2 + a63 * vrhs3 + a64 * vrhs4 + a65 * vrhs5)
+
+        if d6 == 1:
+            print('        pressure projection stage{} = True'.format(6))
+            u6, v6, p6, iter6 = f.ImQ(uh6, vh6, Coef, pn)
+            print('        iterations stage 6 = ', iter6)
+
+        elif d6 == 0:
+            # todo: need to change these
+            if guess == "third":
+                c4 = a41 + a42 + a43
+                sum1 = a42 * a21 + a43 * (a31 + a32)
+                sum2 = a43 * a32 * a21
+                p_approx = ((11 * c4 / 6 + 2 * sum1 + sum2) * pn + (-7 * c4 / 6 - 3 * sum1 - 2 * sum2) * pnm1 + (
+                        c4 / 3 + sum1 + sum2) * pnm2)
+            else:
+                p_approx = 0
+
+            u6 = uh6 - dt * f.Gpx(p_approx)
+            v6 = vh6 - dt * f.Gpy(p_approx)
+
+        div6 = np.linalg.norm(f.div(u6, v6).ravel())
+        print('        divergence of u6 = ', div6)
+
+        ## stage 7
+        print('    Stage 7:')
+        print('    --------')
+        urhs6 = f.urhs(u6, v6)
+        vrhs6 = f.vrhs(u6, v6)
+
+        uh7 = u + dt * (a71 * urhs1 + a72 * urhs2 + a73 * urhs3 + a74 * urhs4 + a75 * urhs5 + a76 * urhs6)
+        vh7 = v + dt * (a71 * vrhs1 + a72 * vrhs2 + a73 * vrhs3 + a74 * vrhs4 + a75 * vrhs5 + a76 * vrhs6)
+
+        if d7 == 1:
+            print('        pressure projection stage{} = True'.format(7))
+            u7, v7, p7, iter7 = f.ImQ(uh7, vh7, Coef, pn)
+            print('        iterations stage 7 = ', iter7)
+
+        elif d7 == 0:
+            # todo: need to change these
+            if guess == "third":
+                c4 = a41 + a42 + a43
+                sum1 = a42 * a21 + a43 * (a31 + a32)
+                sum2 = a43 * a32 * a21
+                p_approx = ((11 * c4 / 6 + 2 * sum1 + sum2) * pn + (-7 * c4 / 6 - 3 * sum1 - 2 * sum2) * pnm1 + (
+                        c4 / 3 + sum1 + sum2) * pnm2)
+            else:
+                p_approx = 0
+
+            u7 = uh7 - dt * f.Gpx(p_approx)
+            v7 = vh7 - dt * f.Gpy(p_approx)
+
+        div7 = np.linalg.norm(f.div(u7, v7).ravel())
+        print('        divergence of u7 = ', div7)
+
+        uhnp1 = u + dt*b1*(urhs1)  + dt*b2*(urhs2) + dt*b3*(urhs3) +  dt*b4*(urhs4) +  dt*b5*(urhs5) +  dt*b6*(urhs6) +  dt*b7*(f.urhs(u7,v7))
+        vhnp1 = v + dt*b1*(vrhs1)  + dt*b2*(vrhs2) + dt*b3*(vrhs3) +  dt*b4*(vrhs4) +  dt*b5*(vrhs5) +  dt*b6*(vrhs6) +  dt*b7*(f.vrhs(u7,v7))
 
         unp1,vnp1,press,iter3= f.ImQ(uhnp1,vhnp1,Coef,pn)
         time_end = time.time()
@@ -227,7 +364,7 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
 
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
-        new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
+        new_press = (49/20) * press + (-71/20) * pn + (79/20) * pnm1 + (-163/60) * pnm2 + (31/30) * pnm3 + (-1/6) * pnm4
 
         psol.append(press)
         cpu_time = time_end - time_start

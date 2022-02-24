@@ -97,7 +97,7 @@ def FE_taylor_vortex (steps=3, return_stability=False,alpha=0.99):
 
         print('    Stage 1:')
         print('    --------')
-        time_start = time.clock()
+        time_start = time.time()
         u = usol[-1].copy()
         v = vsol[-1].copy()
 
@@ -111,7 +111,7 @@ def FE_taylor_vortex (steps=3, return_stability=False,alpha=0.99):
         vh = v +  dt * f.vrhs(u, v)
         unp1, vnp1, press, iter = f.ImQ(uh, vh, Coef, pn)
         total_iteration+=iter
-        time_end = time.clock()
+        time_end = time.time()
         psol.append(press)
         cpu_time = time_end - time_start
         print('        cpu_time=',cpu_time)

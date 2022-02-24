@@ -116,7 +116,7 @@ def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
 
         print('    Stage 1:')
         print('    --------')
-        time_start = time.clock()
+        time_start = time.time()
         u1 = u.copy()
         v1 = v.copy()
 
@@ -188,7 +188,7 @@ def RK2_channel_flow (steps = 3,return_stability=False, name='heun', guess=None,
         f.right_wall(unp1, vnp1, u_bc_right_wall(unp1[1:-1, -1]), v_bc_right_wall(vnp1[1:,-2])) # this won't change anything for unp1
         f.left_wall(unp1, vnp1, u_bc_left_wall, v_bc_left_wall)
 
-        time_end = time.clock()
+        time_end = time.time()
 
         if post_projection:
             # post processing projection

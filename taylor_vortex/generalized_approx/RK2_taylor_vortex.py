@@ -141,7 +141,7 @@ def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, 
 
         print('    Stage 1:')
         print('    --------')
-        time_start = time.clock()
+        time_start = time.time()
         u1 = u.copy()
         v1 = v.copy()
 
@@ -195,7 +195,7 @@ def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, 
 
         iteration_np1+=iter2
 
-        time_end = time.clock()
+        time_end = time.time()
         psol.append(press)
         cpu_time = time_end - time_start
         print('cpu_time=', cpu_time)

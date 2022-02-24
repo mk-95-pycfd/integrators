@@ -5,12 +5,14 @@ from core import singleton_classes as sc
 from core.analytical_jacobian import Analytic_Jacobian
 from core.sym_residual_functions import SymResidualFunc
 from core.Jacobian_indexing import PeriodicIndexer
-
+from scipy import optimize
 
 def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=None, project=[1],alpha=0.99,theta=0.5, Tol=1e-8,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     dt = probDescription.dt
+    nx = probDescription.nx
+    ny = probDescription.ny
     DIRK2 = sc.DIRK2(name, theta)
     a11 = DIRK2.a11
     a21 = DIRK2.a21
@@ -171,7 +173,7 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
 
     while count < tend:
         print('timestep:{}'.format(count+1))
-        time_start = time.clock()
+        time_start = time.time()
         un = usol[-1].copy()
         vn = vsol[-1].copy()
         pn = psol[-1].copy()
@@ -199,19 +201,48 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
             # -------------------------
             f1_s1 = lambda uold, vold, pold: lambda u, v, p: dt * ((u - uold) / dt - a11 * (f.urhs(u, v) - f.Gpx(p)))
             f2_s1 = lambda uold, vold, pold: lambda u, v, p: dt * ((v - vold) / dt - a11 * (f.vrhs(u, v) - f.Gpy(p)))
-            f3_s1 = lambda uold, vold, pold: lambda u, v, p: dt * (
-                        -a11 * (-f.div(f.Gpx(p), f.Gpy(p)) + f.div(f.urhs(u, v), f.vrhs(u, v))) \
-                +(f.div(u, v)- f.div(uold, vold)) / dt)
+            f3_s1 = lambda uold, vold, pold: lambda u, v, p: dt * (-a11 * (-f.div(f.Gpx(p), f.Gpy(p)) + f.div(f.urhs(u, v), f.vrhs(u, v))) +(f.div(u, v)- f.div(uold, vold)) / dt)
             old_s1 = [un, vn, pn]
+
+            def fun(x):
+
+                # step 1 reshape x:
+                u_k = np.zeros_like(un)
+                v_k = np.zeros_like(vn)
+                p_k = np.zeros_like(pn)
+                u_k[1:-1,1:-1] = x[:nx*ny].reshape(ny,nx)
+                v_k[1:-1,1:-1] = x[nx*ny:2*nx*ny].reshape(ny,nx)
+                p_k[1:-1,1:-1] = x[2*nx*ny:].reshape(ny,nx)
+
+                # apply bcs
+                f.periodic_u(u_k)
+                f.periodic_v(v_k)
+                f.periodic_scalar(p_k)
+                # step 2 compute the residual functions
+                f1 = list(f1_s1(*old_s1)(u_k,v_k,p_k)[1:-1,1:-1].ravel())
+                f2 = list(f2_s1(*old_s1)(u_k,v_k,p_k)[1:-1,1:-1].ravel())
+                f3 = list(f3_s1(*old_s1)(u_k,v_k,p_k)[1:-1,1:-1].ravel())
+                # print(f1)
+                return f1+f2+f3
+
             residuals_s1 = [f1_s1, f2_s1, f3_s1]
             guesses_s1 = [un, vn, pn]
+            guess = []
+            for val in guesses_s1:
+                guess+= list(val[1:-1,1:-1].ravel())
+            sol1 = optimize.newton_krylov(fun, guess,f_tol=Tol,verbose=True)
             Tol_s1 = Tol
 
-            sol1, iterations, error,info_1= f.Newton_solver(guesses_s1, old_s1, residuals_s1,
-                                                 [f.periodic_u, f.periodic_v, f.periodic_scalar], Jacobian=Jacobian_s1,
-                                                 Tol=Tol_s1, verbose=False)
-            u1, v1, p1 = sol1
-            info_stage_1 = info_1
+            # sol1, iterations, error,info_1= f.Newton_solver(guesses_s1, old_s1, residuals_s1,
+            #                                      [f.periodic_u, f.periodic_v, f.periodic_scalar], Jacobian=Jacobian_s1,
+            #                                      Tol=Tol_s1, verbose=False)
+            u1 = np.zeros_like(un)
+            v1 = np.zeros_like(vn)
+            p1 = np.zeros_like(pn)
+            u1[1:-1, 1:-1] = sol1[:nx * ny].reshape(ny, nx)
+            v1[1:-1, 1:-1] = sol1[nx * ny:2 * nx * ny].reshape(ny, nx)
+            p1[1:-1, 1:-1] = sol1[2 * nx * ny:].reshape(ny, nx)
+            info_stage_1 = []# info_1
         elif d1 == 0:
             # unsteady residual stage1
             # -------------------------
@@ -234,8 +265,8 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
         f.periodic_v(v1)
         f.periodic_scalar(p1)
 
-        print('     non-linear iterations at stage 1: ', iterations)
-        print('     residual at stage 1: ', error)
+        # print('     non-linear iterations at stage 1: ', iterations)
+        # print('     residual at stage 1: ', error)
         print('     divergence at stage 1: ', np.linalg.norm(f.div(u1, v1).ravel()))
 
         rhs_u1 = f.urhs(u1, v1) - f.Gpx(p1)
@@ -312,7 +343,7 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
         f.periodic_v(vnp1)
         f.periodic_scalar(press)
 
-        time_end = time.clock()
+        time_end = time.time()
 
         if post_projection:
             # post processing projection
@@ -397,19 +428,19 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
 
 
 # from singleton_classes import ProbDescription
-# import matplotlib.pyplot as plt
-# #
-# dt_lam = lambda CFL, dx,Uinlet: CFL*dx/Uinlet
-# Uinlet = 1.42
-# ν = 0.1
+import matplotlib.pyplot as plt
 #
-# probDescription = ProbDescription(N=[32,32],L=[1,1],μ =ν,dt = 0.01)
-# dx,dy = probDescription.dx, probDescription.dy
-# # dt = min(0.25*dx*dx/ν,0.25*dy*dy/ν, 4.0*ν/Uinlet/Uinlet)
-# dt = dt_lam(0.5,dx,Uinlet)
-# probDescription.set_dt(dt)
-# _,_,_,_,resid_info = DIRK2_taylor_vortex(steps=20, return_stability=False,name='pr',guess='DIRK2', project=[1,1],alpha=0.99,theta=0.5)
-#
-# # resid_filename ='analytical_J_Implicit_NSE/DIRK2_pr_theta_0.5/convergence/Pyamg/CFL-0.5/residuals_per_timestep.json'
-# # with open(resid_filename,"w") as file:
-# #     json.dump(resid_info,file,indent=4)
+dt_lam = lambda CFL, dx,Uinlet: CFL*dx/Uinlet
+Uinlet = 1.42
+ν = 0.1
+
+probDescription = sc.ProbDescription(N=[32,32],L=[1,1],μ =ν,dt = 0.01)
+dx,dy = probDescription.dx, probDescription.dy
+# dt = min(0.25*dx*dx/ν,0.25*dy*dy/ν, 4.0*ν/Uinlet/Uinlet)
+dt = dt_lam(0.5,dx,Uinlet)
+probDescription.set_dt(dt)
+_,_,_,_,resid_info = DIRK2_taylor_vortex(steps=20, return_stability=False,name='pr',guess='DIRK2', project=[1,1],alpha=0.99,theta=0.5,Tol=1e-12)
+
+# resid_filename ='analytical_J_Implicit_NSE/DIRK2_pr_theta_0.5/convergence/Pyamg/CFL-0.5/residuals_per_timestep.json'
+# with open(resid_filename,"w") as file:
+#     json.dump(resid_info,file,indent=4)
