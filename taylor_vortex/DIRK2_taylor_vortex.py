@@ -430,16 +430,16 @@ def DIRK2_taylor_vortex (steps=3, return_stability=False,name='midpoint',guess=N
 # from singleton_classes import ProbDescription
 import matplotlib.pyplot as plt
 #
-dt_lam = lambda CFL, dx,Uinlet: CFL*dx/Uinlet
-Uinlet = 1.42
-ν = 0.1
-
-probDescription = sc.ProbDescription(N=[32,32],L=[1,1],μ =ν,dt = 0.01)
-dx,dy = probDescription.dx, probDescription.dy
-# dt = min(0.25*dx*dx/ν,0.25*dy*dy/ν, 4.0*ν/Uinlet/Uinlet)
-dt = dt_lam(0.5,dx,Uinlet)
-probDescription.set_dt(dt)
-_,_,_,_,resid_info = DIRK2_taylor_vortex(steps=20, return_stability=False,name='pr',guess='DIRK2', project=[1,1],alpha=0.99,theta=0.5,Tol=1e-12)
+# dt_lam = lambda CFL, dx,Uinlet: CFL*dx/Uinlet
+# Uinlet = 1.42
+# ν = 0.1
+#
+# probDescription = sc.ProbDescription(N=[32,32],L=[1,1],μ =ν,dt = 0.01)
+# dx,dy = probDescription.dx, probDescription.dy
+# # dt = min(0.25*dx*dx/ν,0.25*dy*dy/ν, 4.0*ν/Uinlet/Uinlet)
+# dt = dt_lam(0.5,dx,Uinlet)
+# probDescription.set_dt(dt)
+# _,_,_,_,resid_info = DIRK2_taylor_vortex(steps=20, return_stability=False,name='pr',guess='DIRK2', project=[1,1],alpha=0.99,theta=0.5,Tol=1e-12)
 
 # resid_filename ='analytical_J_Implicit_NSE/DIRK2_pr_theta_0.5/convergence/Pyamg/CFL-0.5/residuals_per_timestep.json'
 # with open(resid_filename,"w") as file:
