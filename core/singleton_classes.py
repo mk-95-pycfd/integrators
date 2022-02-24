@@ -207,6 +207,43 @@ class RK4:
 
 
 @SingletonDecorator
+class RK76:
+    def __init__(self, name):
+        self.name = name
+        self.coefs()
+
+    def coefs(self):
+        if self.name == 'regular':
+            self.a21 = 1/3
+            self.a31 = 0
+            self.a32 = 2/3
+            self.a41 = 1/12
+            self.a42 = 1/3
+            self.a43 = -1/12
+            self.a51 = 25/48
+            self.a52 = -55/24
+            self.a53 = 35/48
+            self.a54 = 15/8
+            self.a61 = 3/20
+            self.a62 = -11/24 # this was the mistake it was -11/20
+            self.a63 = -1/8
+            self.a64 = 1/2
+            self.a65 = 1/10
+            self.a71 = -261/260
+            self.a72 = 33/13
+            self.a73 = 43/156
+            self.a74 = -118/39
+            self.a75 = 32/195
+            self.a76 = 80/39
+            self.b1  = 13/200
+            self.b2  = 0
+            self.b3  = 11/40
+            self.b4  = 11/40
+            self.b5  = 4/25
+            self.b6  = 4/25
+            self.b7  = 13/200
+
+@SingletonDecorator
 class DIRK2:
     def __init__(self, name, theta=None):
         self.name = name
