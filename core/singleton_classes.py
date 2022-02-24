@@ -205,6 +205,31 @@ class RK4:
             self.b3 = 2.0 / 3.0
             self.b4 = 2.0 / 9.0
 
+@SingletonDecorator
+class RK54:
+    def __init__(self, beta):
+        if beta ==0:
+            raise Exception("beta has to be different that zero")
+        self.beta = beta
+        self.coefs()
+
+    def coefs(self):
+        self.a21 = 1/4
+        self.a31 = 1/2
+        self.a32 = 0
+        self.a41 = 0
+        self.a42 = 1/2
+        self.a43 = 1/4
+        self.a51 = 0
+        self.a52 = 1/6/self.beta
+        self.a53 = -1/3/self.beta
+        self.a54 = 1/6/self.beta
+        self.b1  = -self.beta
+        self.b2  = 2/3
+        self.b3  = -1/3
+        self.b4  = 2/3
+        self.b5  = self.beta
+
 
 @SingletonDecorator
 class RK76:
