@@ -134,6 +134,29 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
             pnm3 = psol[-4].copy()
             d2,d3,d4 = project
 
+            # define the pressure derivatives
+            Pn = (11 * pn - 7 * pnm1 + 2 * pnm2)/6
+            Pn_p = (2 * pn - 3 * pnm1 + 1 * pnm2)
+            Pn_pp = (1 * pn - 2 * pnm1 + 1 * pnm2)
+
+            # special case
+            # alpha_2 = (a43*(a21*a42 + (a31 + a32)*a43)*b4**2) / (a43*b2*b4 - b3*(a32*b3 + a42*b4))
+            # define parameters
+            alpha_2 = 0#a21**2/2
+            alpha_3 = 1.0#0.5*b4*a43*a32*a21/b2#1#a21**3/6
+            beta_3 = -b2/b3 * alpha_3#(a31+a32)**3/6
+
+            # dependent on the parameters
+            beta_2 = -((b4*a42+b3*a32)/(b4*a43)) * alpha_2 + a32*a21
+            gamma_2 = -(b3/b4) * beta_2 -(b2/b4) * alpha_2 + (b3/b4) * a32*a21 + (a42*a21 + a43*(a31 + a32))
+            gamma_3 = -(b2/b4) * alpha_3 - b3/b4 * beta_3 + a43*a32*a21
+
+            print("alpha_2=", alpha_2)
+            print("alpha_3=", alpha_3)
+            print("beta_2=", beta_2)
+            print("beta_3=", beta_3)
+            print("gamma_2=", gamma_2)
+            print("gamma_3=", gamma_3)
         elif count <= 4: # compute pressures for 2 time steps
             d2 = 1
             d3 = 1
@@ -165,7 +188,10 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "third":
-                p_approx =  (11*a21/6 * pn - 7*a21/6 * pnm1 + a21/3 * pnm2)
+                # p_approx =  (11*a21/6 * pn - 7*a21/6 * pnm1 + a21/3 * pnm2)
+                # parametric approx
+                p_approx = a21 * Pn + alpha_2 * Pn_p + alpha_3 * Pn_pp
+
             else:
                 p_approx = 0
             u2 = uh2 - dt * f.Gpx(p_approx)
@@ -190,7 +216,9 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         elif d3 == 0:
             if guess == "third":
                 c3 = a32 + a31
-                p_approx =  ((11*c3/6 + 2 *a32*a21)*pn + (-7*(a32+a31)/6 - 3 * a32*a21) * pnm1 + (c3/3 + a32*a21)*pnm2)
+                # p_approx =  ((11*c3/6 + 2 *a32*a21)*pn + (-7*(a32+a31)/6 - 3 * a32*a21) * pnm1 + (c3/3 + a32*a21)*pnm2)
+                # parametric approx
+                p_approx = c3 * Pn + beta_2 * Pn_p + beta_3 * Pn_pp
             else:
                 p_approx = 0
 
@@ -218,7 +246,9 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
                 c4 = a41 + a42 + a43
                 sum1 = a42 * a21 + a43 * (a31 + a32)
                 sum2 = a43 * a32 * a21
-                p_approx =  ((11*c4/6 + 2 * sum1 + sum2)*pn + (-7*c4/6 -3*sum1-2*sum2)*pnm1 + (c4/3 + sum1 +sum2) * pnm2)
+                # p_approx =  ((11*c4/6 + 2 * sum1 + sum2)*pn + (-7*c4/6 -3*sum1-2*sum2)*pnm1 + (c4/3 + sum1 +sum2) * pnm2)
+                # parametric approx
+                p_approx = c4 * Pn + gamma_2 * Pn_p + gamma_3 * Pn_pp
             else:
                 p_approx = 0
 
@@ -242,14 +272,14 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
         # new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
-        c3 = a31+a32
-        c4 = a41+a42+a43
-        a2 = (-3*a21*a32*c4-3*a21*a32+3*c3*(a21*a42+a43*c3)+c3)/a21**2/a32
-        a3 = -(3*a21*a42+3*a43*c3+1)/a21/a32
-        a4 = 3
-        anp1 = 4
-
-        new_press = a2*p2 + a3*p3 + a4*p4 +anp1*press
+        # c3 = a31+a32
+        # c4 = a41+a42+a43
+        # a2 = (-3*a21*a32*c4-3*a21*a32+3*c3*(a21*a42+a43*c3)+c3)/a21**2/a32
+        # a3 = -(3*a21*a42+3*a43*c3+1)/a21/a32
+        # a4 = 3
+        # anp1 = 4
+        #
+        # new_press = a2*p2 + a3*p3 + a4*p4 +anp1*press
 
         psol.append(press)
         cpu_time = time_end - time_start
