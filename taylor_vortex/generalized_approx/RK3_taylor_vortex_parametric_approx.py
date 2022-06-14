@@ -4,7 +4,7 @@ import time
 from core import singleton_classes as sc
 
 
-def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name='regular',guess=None,project=[1,1],alpha_2_approx=0.0,alpha=0.99,post_projection=False):
+def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name='regular',guess=None,project=[1,1],gamma={"22":0},alpha=0.99,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     f = func(probDescription,'periodic')
@@ -127,15 +127,35 @@ def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name=
 
             # define the pressure derivatives
             Pn = (3 * pn - pnm1) / 2
-            Pn_p = (pn - pnm1)
-
+            Pn_p = (pn - pnm1) / dt
+            # define the pressure derivatives
+            c3 = a31 + a32
             # define parameters
-            alpha_2 = alpha_2_approx
-            # dependent on the parameters
-            beta_2 = a32 * a21 -( b2/ b3) * alpha_2
 
-            print("alpha_2=", alpha_2)
-            print("beta_2=", beta_2)
+            if (d2 == 0 and d3 ==0):
+                # dependent on the parameters
+                gamma_22 = gamma["22"]  # a21/2
+                # ---------------------------------
+                gamma_32 = a32*a21/c3 - gamma_22 * b2*a21/b3/c3
+            elif (d2==0 and d3 ==1):
+                gamma_22 = 0
+                gamma_32 = 0
+            elif (d2==1 and d3 ==0):
+                gamma_22 = 0
+                gamma_32 = a32*a21/c3
+
+            print("general approx")
+            print("gamma_22=", gamma_22)
+            print("gamma_32=", gamma_32)
+            print("==================")
+            # comment on capuano paper
+            # gamma_22 = a21/2
+            # gamma_32 = c3/2
+
+            # print("capuano's approx")
+            # print("gamma_22=", a21/2)
+            # print("gamma_32=", c3/2)
+
 
         elif count <= 2: # compute pressures for 2 time steps
             d1=1
@@ -167,11 +187,11 @@ def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name=
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "second":
-                p_approx = a21 * Pn + alpha_2 * Pn_p
+                p_approx = Pn + gamma_22 * dt * Pn_p
             else:
                 p_approx = 0
-            u2 = uh2 - dt*f.Gpx(p_approx)
-            v2 = vh2 - dt*f.Gpy(p_approx)
+            u2 = uh2 - a21 * dt*f.Gpx(p_approx)
+            v2 = vh2 - a21 * dt*f.Gpy(p_approx)
 
         div2 = np.linalg.norm(f.div(u2,v2).ravel())
         print('        divergence of u2 = ', div2)
@@ -192,11 +212,11 @@ def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name=
 
         elif d3 == 0:
             if guess == "second":
-                p_approx = (a31+a32) * Pn + beta_2 * Pn_p
+                p_approx = Pn + gamma_32 * dt * Pn_p
             else:
                 p_approx = 0
-            u3 = uh3 -dt*f.Gpx(p_approx)
-            v3 = vh3 -dt*f.Gpy(p_approx)
+            u3 = uh3 - (a31+a32) * dt*f.Gpx(p_approx)
+            v3 = vh3 - (a31+a32) * dt*f.Gpy(p_approx)
 
         div3 = np.linalg.norm(f.div(u3,v3).ravel())
         print('        divergence of u3 = ', div3)
