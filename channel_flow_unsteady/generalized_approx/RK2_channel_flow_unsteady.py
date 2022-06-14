@@ -159,12 +159,12 @@ def RK2_channel_flow_unsteady (steps = 3,return_stability=False, name='heun', gu
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "first":
-                p_approx = a21 * pn
+                p_approx = pn
             else:
                 p_approx = 0
 
-            u2 = uh2 - dt * f.Gpx(p_approx)
-            v2 = vh2 - dt * f.Gpy(p_approx)
+            u2 = uh2 - a21 * dt * f.Gpx(p_approx)
+            v2 = vh2 - a21 * dt * f.Gpy(p_approx)
 
         # apply bcs
         f.top_wall(u2, v2, u_bc_top_wall, v_bc_top_wall)
