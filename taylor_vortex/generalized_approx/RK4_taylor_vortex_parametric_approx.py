@@ -4,7 +4,8 @@ import time
 from core import singleton_classes as sc
 
 
-def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=None,project=[1,1,1],alpha=0.99,post_projection=False):
+def RK4_taylor_vortex_parametric_approx (steps = 3,return_stability=False,name='regular',guess=None,gamma={
+    "22":0,"23":0,"33":0},project=[1,1,1],alpha=0.99,post_projection=False):
     # problem description
     probDescription = sc.ProbDescription()
     f = func(probDescription,'periodic')
@@ -117,47 +118,60 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         u = usol[-1].copy()
         v = vsol[-1].copy()
         pn = np.zeros_like(u)
-        pnm1 =  np.zeros_like(u)
-        pnm2 =  np.zeros_like(u)
+        pnm1 = np.zeros_like(u)
+        pnm2 = np.zeros_like(u)
         pnm3 = np.zeros_like(u)
-
-        f1x = np.zeros_like(pn)
-        f1y = np.zeros_like(pn)
-        f2x = np.zeros_like(pn)
-        f2y = np.zeros_like(pn)
-        f3x = np.zeros_like(pn)
-        f3y = np.zeros_like(pn)
-        if count >4:
+        if count > 4:
             pn = psol[-1].copy()
             pnm1 = psol[-2].copy()
             pnm2 = psol[-3].copy()
             pnm3 = psol[-4].copy()
+
             d2,d3,d4 = project
-
             # define the pressure derivatives
-            Pn = (11 * pn - 7 * pnm1 + 2 * pnm2)/6
-            Pn_p = (2 * pn - 3 * pnm1 + 1 * pnm2)
-            Pn_pp = (1 * pn - 2 * pnm1 + 1 * pnm2)
+            Pn = 11 / 6 * pn - 7 / 6 * pnm1 + pnm2 / 3
+            Pn_p = (2 * pn - 3 * pnm1 + pnm2) / dt
+            Pn_pp = (pn - 2 * pnm1 + pnm2) / dt / dt
 
-            # special case
-            # alpha_2 = (a43*(a21*a42 + (a31 + a32)*a43)*b4**2) / (a43*b2*b4 - b3*(a32*b3 + a42*b4))
+            c3 = a31 + a32
+            c4 = a41 + a42 + a43
             # define parameters
-            alpha_2 = 0#a21**2/2
-            alpha_3 = 1.0#0.5*b4*a43*a32*a21/b2#1#a21**3/6
-            beta_3 = -b2/b3 * alpha_3#(a31+a32)**3/6
 
             # dependent on the parameters
-            beta_2 = -((b4*a42+b3*a32)/(b4*a43)) * alpha_2 + a32*a21
-            gamma_2 = -(b3/b4) * beta_2 -(b2/b4) * alpha_2 + (b3/b4) * a32*a21 + (a42*a21 + a43*(a31 + a32))
-            gamma_3 = -(b2/b4) * alpha_3 - b3/b4 * beta_3 + a43*a32*a21
+            gamma_22 = gamma["22"]  # a21/2
+            gamma_23 = gamma["23"]  # a21**2/6
+            gamma_33 = gamma["33"]  # c3**2/6
+            # ---------------------------------
 
-            print("alpha_2=", alpha_2)
-            print("alpha_3=", alpha_3)
-            print("beta_2=", beta_2)
-            print("beta_3=", beta_3)
-            print("gamma_2=", gamma_2)
-            print("gamma_3=", gamma_3)
-        elif count <= 4: # compute pressures for 2 time steps
+            gamma_32 = (1 / 24 - gamma_22 * (a21 * a32 * b3 + a21 * a42 * b4)) / (a43 * b4 * c3)
+            gamma_42 = -(a21 * b2 * gamma_22) / (b4 * c4) - (b3 * gamma_32 * c3) / (b4 * c4) + 1 / (6 * b4 * c4)
+            gamma_43 = -(gamma_23 * (a21 * b2)) / (b4 * c4) - (gamma_33 * (b3 * c3)) / (b4 * c4) + 1 / (24 * b4 * c4)
+
+            print("general approx")
+            print("gamma_22=", gamma_22)
+            print("gamma_23=", gamma_23)
+            print("gamma_32=", gamma_32)
+            print("gamma_33=", gamma_33)
+            print("gamma_42=", gamma_42)
+            print("gamma_43=", gamma_43)
+            print("==================")
+            # comment on capuano paper
+            # gamma_22 = a21/2
+            # gamma_23 = a21**2/6
+            # gamma_32 = c3/2
+            # gamma_33 = c3**2/6
+            # gamma_42 = c4/2
+            # gamma_43 = c4**2/6
+
+            # print("capuano's approx")
+            # print("gamma_22=", a21/2)
+            # print("gamma_23=", a21**2/6)
+            # print("gamma_32=", c3/2)
+            # print("gamma_33=", c3**2/6)
+            # print("gamma_42=", c4/2)
+            # print("gamma_43=", c4**2/6)
+
+        elif count <= 4:  # compute pressures for 4 time steps
             d2 = 1
             d3 = 1
             d4 = 1
@@ -184,18 +198,17 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
 
         if d2 == 1:
             print('        pressure projection stage{} = True'.format(2))
-            u2, v2, p2, iter1 = f.ImQ(uh2, vh2, Coef, pn)
+            u2, v2, _, iter1 = f.ImQ(uh2, vh2, Coef, pn)
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "third":
-                # p_approx =  (11*a21/6 * pn - 7*a21/6 * pnm1 + a21/3 * pnm2)
-                # parametric approx
-                p_approx = a21 * Pn + alpha_2 * Pn_p + alpha_3 * Pn_pp
-
+                p_approx = Pn + gamma_22 * dt * Pn_p + gamma_23 * dt*dt *Pn_pp
             else:
                 p_approx = 0
-            u2 = uh2 - dt * f.Gpx(p_approx)
-            v2 = vh2 - dt * f.Gpy(p_approx)
+
+            u2 = uh2 - a21 * dt * f.Gpx(p_approx)
+            v2 = vh2 - a21 * dt * f.Gpy(p_approx)
+
         div2 = np.linalg.norm(f.div(u2, v2).ravel())
         print('        divergence of u2 = ', div2)
 
@@ -205,25 +218,23 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         urhs2 = f.urhs(u2, v2)
         vrhs2 = f.vrhs(u2, v2)
 
-        uh3 = u + dt * (a31 * urhs1  + a32 * urhs2)
-        vh3 = v + dt * (a31 * vrhs1  + a32 * vrhs2)
+        uh3 = u + dt * (a31 * urhs1  + a32 * urhs2 )
+        vh3 = v + dt * (a31 * vrhs1  + a32 * vrhs2 )
 
         if d3 == 1:
             print('        pressure projection stage{} = True'.format(3))
-            u3, v3, p3, iter2 = f.ImQ(uh3, vh3, Coef, pn)
+            u3, v3, _, iter2 = f.ImQ(uh3, vh3, Coef, pn)
             print('        iterations stage 3 = ', iter2)
 
         elif d3 == 0:
             if guess == "third":
-                c3 = a32 + a31
-                # p_approx =  ((11*c3/6 + 2 *a32*a21)*pn + (-7*(a32+a31)/6 - 3 * a32*a21) * pnm1 + (c3/3 + a32*a21)*pnm2)
-                # parametric approx
-                p_approx = c3 * Pn + beta_2 * Pn_p + beta_3 * Pn_pp
+                p_approx =  Pn + gamma_32 * dt * Pn_p + gamma_33 * dt*dt *Pn_pp
             else:
                 p_approx = 0
 
-            u3 = uh3 - dt * f.Gpx(p_approx)
-            v3 = vh3 - dt * f.Gpy(p_approx)
+            u3 = uh3 - (a31 + a32) * dt * f.Gpx(p_approx)
+            v3 = vh3 - (a31 + a32) * dt * f.Gpy(p_approx)
+
         div3 = np.linalg.norm(f.div(u3, v3).ravel())
         print('        divergence of u3 = ', div3)
 
@@ -233,27 +244,22 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
         urhs3 = f.urhs(u3, v3)
         vrhs3 = f.vrhs(u3, v3)
 
-        uh4 = u + dt * (a41 * urhs1 + a42 * urhs2 + a43 * urhs3 )
-        vh4 = v + dt * (a41 * vrhs1 + a42 * vrhs2 + a43 * vrhs3 )
+        uh4 = u + dt * (a41 * urhs1 + a42 * urhs2 + a43 * urhs3  )
+        vh4 = v + dt * (a41 * vrhs1 + a42 * vrhs2 + a43 * vrhs3  )
 
         if d4 == 1:
             print('        pressure projection stage{} = True'.format(4))
-            u4, v4, p4, iter4 = f.ImQ(uh4, vh4, Coef, pn)
+            u4, v4, _, iter4 = f.ImQ(uh4, vh4, Coef, pn)
             print('        iterations stage 4 = ', iter4)
 
         elif d4 == 0:
             if guess == "third":
-                c4 = a41 + a42 + a43
-                sum1 = a42 * a21 + a43 * (a31 + a32)
-                sum2 = a43 * a32 * a21
-                # p_approx =  ((11*c4/6 + 2 * sum1 + sum2)*pn + (-7*c4/6 -3*sum1-2*sum2)*pnm1 + (c4/3 + sum1 +sum2) * pnm2)
-                # parametric approx
-                p_approx = c4 * Pn + gamma_2 * Pn_p + gamma_3 * Pn_pp
+                p_approx =  Pn + gamma_42 * dt * Pn_p + gamma_43 * dt*dt *Pn_pp
             else:
                 p_approx = 0
 
-            u4 = uh4 -dt * f.Gpx(p_approx)
-            v4 = vh4 -dt * f.Gpy(p_approx)
+            u4 = uh4 - (a41 + a42 + a43) * dt * f.Gpx(p_approx)
+            v4 = vh4 - (a41 + a42 + a43) * dt * f.Gpy(p_approx)
 
         div4 = np.linalg.norm(f.div(u4, v4).ravel())
         print('        divergence of u4 = ', div4)
@@ -271,15 +277,7 @@ def RK4_taylor_vortex (steps = 3,return_stability=False,name='regular',guess=Non
 
             _, _, post_press, _ = f.ImQ(uhnp1_star, vhnp1_star, Coef, pn)
 
-        # new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
-        # c3 = a31+a32
-        # c4 = a41+a42+a43
-        # a2 = (-3*a21*a32*c4-3*a21*a32+3*c3*(a21*a42+a43*c3)+c3)/a21**2/a32
-        # a3 = -(3*a21*a42+3*a43*c3+1)/a21/a32
-        # a4 = 3
-        # anp1 = 4
-        #
-        # new_press = a2*p2 + a3*p3 + a4*p4 +anp1*press
+        new_press = 25*press/12 -23*pn/12 +13*pnm1/12 - pnm2/4
 
         psol.append(press)
         cpu_time = time_end - time_start
