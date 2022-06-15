@@ -166,12 +166,12 @@ def RK2_taylor_vortex(steps=3, return_stability=False, name='heun', guess=None, 
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "first":
-                p_approx = a21 * pn
+                p_approx = pn
             else:
                 p_approx=0
 
-            u2 = uh2 -  dt * f.Gpx(p_approx)
-            v2 = vh2 -  dt * f.Gpy(p_approx)
+            u2 = uh2 - a21 * dt * f.Gpx(p_approx)
+            v2 = vh2 - a21 * dt * f.Gpy(p_approx)
 
         div2 = np.linalg.norm(f.div(u2, v2).ravel())
         print('        divergence of u2 = ', div2)

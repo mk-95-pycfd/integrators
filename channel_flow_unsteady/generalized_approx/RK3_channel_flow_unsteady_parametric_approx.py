@@ -6,7 +6,9 @@ import statistics
 import pyamg
 import matplotlib.pyplot as plt
 
-def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=False, name='heun', guess=None,alpha_2_approx=0.0, project=[],alpha=0.99,post_projection=False):
+def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=False, name='heun', guess=None,
+                                                 gamma={"22":0.0}, project=[],alpha=0.99,post_projection=False,
+                                                 user_bcs_time_func=[],eliminate_extra_terms_in_phi2=False):
     probDescription = sc.ProbDescription()
     f = func(probDescription)
     dt = probDescription.get_dt()
@@ -24,30 +26,58 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
 
     # initialize velocities - we stagger everything in the negative direction. A scalar cell owns its minus face, only.
     # Then, for example, the u velocity field has a ghost cell at x0 - dx and the plus ghost cell at lx
-    np.random.seed(123)
-    u0 = np.random.rand(ny + 2, nx + 2)/1e7  # include ghost cells
-    # u0 = np.zeros([ny +2, nx+2])# include ghost cells
+    # np.random.seed(123)
+    # u0 = np.random.rand(ny + 2, nx + 2)/1e7  # include ghost cells
+    u0 = np.zeros([ny + 2, nx + 2])  # include ghost cells
     # same thing for the y-velocity component
-    v0 = np.random.rand(ny + 2, nx + 2)/1e7  # include ghost cells
-    # v0 = np.zeros([ny +2, nx+2])  # include ghost cells
+    # v0 = np.random.rand(ny + 2, nx + 2)/1e7  # include ghost cells
+    v0 = np.zeros([ny + 2, nx + 2])  # include ghost cells
 
-    at = lambda t: (np.pi / 6) * np.sin(t / 2)
+    # ---------------------------------------------
+    # Definition of the time dependent ubc
+    # ---------------------------------------------
+    field = np.zeros_like(u0)
+    xu_, yu_ = probDescription.get_XVol()
+    field[1:-1, 1] = yu_[:, 0] * (1.0 - yu_[:, 0])
+    if user_bcs_time_func:
+        time_func = user_bcs_time_func[0]
+        time_func_prime = user_bcs_time_func[1]
+        time_func_dprime = user_bcs_time_func[2]
+    else:
+        time_func = lambda t: 1
+        time_func_prime = lambda t: 0
+        time_func_dprime = lambda t: 0
+    ub = lambda t: field * time_func(t)
+    ub_prime = lambda t: field * time_func_prime(t)
+    ub_dprime = lambda t: field * time_func_dprime(t)
+
+    def extra_phi(t, ci):
+        rhs = (ub_prime(t) - (ub(t + ci * dt) - ub(t)) / ci / dt) / dx
+        ml = pyamg.ruge_stuben_solver(Coef)
+        tmpsol = ml.solve(np.ravel(rhs[1:-1, 1:-1]), tol=1e-16)
+        sol = np.zeros([ny + 2, nx + 2])
+        sol[1:-1, 1:-1] = tmpsol.reshape([ny, nx])
+        return sol
+
+    def extra_phi3(t):
+        rhs = ((a31 + a32) / 2 - a32 * a21 / (a31 + a32)) * (ub_dprime(t)) / dx
+        ml = pyamg.ruge_stuben_solver(Coef)
+        tmpsol = ml.solve(np.ravel(rhs[1:-1, 1:-1]), tol=1e-16)
+        sol = np.zeros([ny + 2, nx + 2])
+        sol[1:-1, 1:-1] = tmpsol.reshape([ny, nx])
+        return sol
+
+    # ==============================================
 
     u_bc_top_wall = lambda xu: 0
     u_bc_bottom_wall = lambda xu: 0
     u_bc_right_wall = lambda u: lambda yu: u
-    u_bc_left_wall = lambda t: lambda yu: 4.0 * yu[:, 0] * (1.0 - yu[:, 0]) * np.cos(at(t))  # parabolic inlet
-    # u_bc_left_wall = lambda yu: 1.0 # uniform inlet
+    u_bc_left_wall = lambda t: lambda yu: yu_[:, 0] * (1.0 - yu_[:, 0]) * time_func(t)  # time dependent parabolic inlet
 
     v_bc_top_wall = lambda xv: 0
     v_bc_bottom_wall = lambda xv: 0
     v_bc_right_wall = lambda v: lambda yv: v
     v_bc_left_wall = lambda t: lambda yv: 0
-
-
-    # post processing m'
-    # we only consider the u component of the velocity (check sanderse 2012)
-    m_p = lambda t, y: -np.pi*y*(1-y)*np.sin(at(t))*np.cos(t/2.0)
 
     # pressure
     def pressure_right_wall(p):
@@ -63,7 +93,23 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
 
     Coef = f.A_channel_flow()
 
-    u0_free, v0_free, _, _ = f.ImQ_bcs(u0, v0, Coef, 0, p_bcs)
+    # u0_free, v0_free, press0_free, _ = f.ImQ_bcs(u0, v0, Coef, 0, p_bcs)
+    u0_free = np.zeros_like(u0)
+    v0_free = np.zeros_like(v0)
+
+    divuhat = f.div(u0, v0)
+    prhs = divuhat[1:-1, 1:-1]
+    rhs = prhs.ravel()
+    ml = pyamg.ruge_stuben_solver(Coef)
+    ptmp = ml.solve(rhs, tol=1e-16)
+    press0_free = np.zeros([ny + 2, nx + 2])
+    press0_free[1:-1, 1:-1] = ptmp.reshape([ny, nx])
+
+    # set bcs on the pressure
+    p_bcs(press0_free)
+
+    u0_free[1:-1, 1:] = u0[1:-1, 1:] - (press0_free[1:-1, 1:] - press0_free[1:-1, :-1]) / dx
+    v0_free[1:, 1:-1] = v0[1:, 1:-1] - (press0_free[1:, 1:-1] - press0_free[:-1, 1:-1]) / dy
 
     f.top_wall(u0_free, v0_free, u_bc_top_wall, v_bc_top_wall)
     f.bottom_wall(u0_free, v0_free, u_bc_bottom_wall, v_bc_bottom_wall)
@@ -73,7 +119,7 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
     print('div_u0=', np.linalg.norm(f.div(u0_free, v0_free).ravel()))
 
     # initialize the pressure
-    p0 = np.zeros([nx + 2, ny + 2]);  # include ghost cells
+    p0 = np.zeros([ny + 2, nx + 2]);  # include ghost cells
 
     # declare unp1
     unp1 = np.zeros_like(u0)
@@ -90,7 +136,7 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
     vsol.append(v0_free)
 
     psol = []
-    psol.append(p0)
+    psol.append(press0_free)
     iterations = [0]
 
     while count < tend:
@@ -116,15 +162,34 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
             d2,d3 = project
             # define the pressure derivatives
             Pn = (3 * pn - pnm1) / 2
-            Pn_p = (pn - pnm1)
-
+            Pn_p = (pn - pnm1) / dt
+            # define the pressure derivatives
+            c3 = a31 + a32
             # define parameters
-            alpha_2 = alpha_2_approx
-            # dependent on the parameters
-            beta_2 = a32 * a21 - (b2 / b3) * alpha_2
 
-            print("alpha_2=", alpha_2)
-            print("beta_2=", beta_2)
+            if (d2 == 0 and d3 == 0):
+                # dependent on the parameters
+                gamma_22 = gamma["22"]  # a21/2
+                # ---------------------------------
+                gamma_32 = a32 * a21 / c3 - gamma_22 * b2 * a21 / b3 / c3
+            elif (d2 == 0 and d3 == 1):
+                gamma_22 = 0
+                gamma_32 = 0
+            elif (d2 == 1 and d3 == 0):
+                gamma_22 = 0
+                gamma_32 = a32 * a21 / c3
+
+            print("general approx")
+            print("gamma_22=", gamma_22)
+            print("gamma_32=", gamma_32)
+            print("==================")
+            # comment on capuano paper
+            # gamma_22 = a21/2
+            # gamma_32 = c3/2
+
+            # print("capuano's approx")
+            # print("gamma_22=", a21/2)
+            # print("gamma_32=", c3/2)
 
         elif count <= 2:  # compute pressures for 3 time steps
             d2 = 1
@@ -164,15 +229,16 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
 
         if d2 == 1:
             print('        pressure projection stage{} = True'.format(2))
-            u2, v2, _, iter1 = f.ImQ_bcs(uh2, vh2, Coef, pn, p_bcs)
+            u2, v2, _, iter1 = f.ImQ_bcs(uh2, vh2, Coef, pn, p_bcs, ci = a21)
+            p_approx = np.zeros_like(pn)
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "second":
-                p_approx = a21 * Pn + alpha_2 * Pn_p
+                p_approx = Pn + gamma_22 * dt * Pn_p
             else:
-                p_approx = 0
-            u2 = uh2 - dt * f.Gpx(p_approx)
-            v2 = vh2 - dt * f.Gpy(p_approx)
+                p_approx = np.zeros_like(pn)
+            u2 = uh2 - a21 * dt * f.Gpx(p_approx)
+            v2 = vh2 - a21 * dt * f.Gpy(p_approx)
 
         # apply bcs
         f.top_wall(u2, v2, u_bc_top_wall, v_bc_top_wall)
@@ -198,15 +264,17 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
 
         if d3 == 1:
             print('        pressure projection stage{} = True'.format(3))
-            u3, v3, _, iter1 = f.ImQ_bcs(uh3, vh3, Coef, pn, p_bcs)
+            u3, v3, _, iter1 = f.ImQ_bcs(uh3, vh3, Coef, pn, p_bcs, ci = a31+a32)
+            p_approx = np.zeros_like(pn)
             print('        iterations stage 3 = ', iter1)
         elif d3 == 0:
             if guess == "second":
-                p_approx = (a31+a32) * Pn + beta_2 * Pn_p
+                p_approx = Pn + gamma_32 * dt * Pn_p
             else:
-                p_approx = 0
-            u3 = uh3 - dt * f.Gpx(p_approx)
-            v3 = vh3 - dt * f.Gpy(p_approx)
+                p_approx = np.zeros_like(pn)
+
+            u3 = uh3 - (a31+a32) * dt * f.Gpx(p_approx)
+            v3 = vh3 - (a31+a32) * dt * f.Gpy(p_approx)
 
         # apply bcs
         f.top_wall(u3, v3, u_bc_top_wall, v_bc_top_wall)
@@ -278,7 +346,7 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
 
         # plot of the pressure gradient in order to make sure the solution is correct
         # # plt.contourf(usol[-1][1:-1,1:])
-        # if count % 1 ==0:
+        # if count % 20 ==0:
         #     # divu = f.div(unp1,vnp1)
         #     # plt.imshow(divu[1:-1,1:-1], origin='bottom')
         #     # plt.colorbar()
@@ -310,4 +378,10 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
 # dx,dy = probDescription.dx, probDescription.dy
 # dt = min(0.25*dx*dx/ν,0.25*dy*dy/ν, 4.0*ν/Uinlet/Uinlet)
 # probDescription.set_dt(dt)
-# RK3_channel_flow_unsteady (steps = 2000,return_stability=False, name='regular', guess=None, project=[1,1],alpha=0.99)
+# time_func = lambda t: 2*(1-np.exp(-t))#np.sin((np.pi / 6) * np.sin(t / 2)) * np.cos(t / 2.0)#
+# time_func_prime = lambda t: 0#2*np.exp(-t)
+# time_func_dprime = lambda t: 0#-2*np.exp(-t)
+# user_bcs_time_func = [time_func,time_func_prime, time_func_dprime]
+# RK3_channel_flow_unsteady_parametric_approx (steps = 2000,return_stability=False, name='regular',
+#                                              guess="second", project=[1,0],alpha=0.99,
+#                                              user_bcs_time_func=user_bcs_time_func)
