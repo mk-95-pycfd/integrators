@@ -143,7 +143,9 @@ def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name=
             elif (d2==1 and d3 ==0):
                 gamma_22 = 0
                 gamma_32 = a32*a21/c3
-
+            elif (d2==1 and d3 ==0):
+                gamma_22 = 0
+                gamma_32 = 0
             print("general approx")
             print("gamma_22=", gamma_22)
             print("gamma_32=", gamma_32)
@@ -189,7 +191,7 @@ def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name=
             if guess == "second":
                 p_approx = Pn + gamma_22 * dt * Pn_p
             else:
-                p_approx = 0
+                p_approx = np.zeros_like(pn)
             u2 = uh2 - a21 * dt*f.Gpx(p_approx)
             v2 = vh2 - a21 * dt*f.Gpy(p_approx)
 
@@ -214,7 +216,7 @@ def RK3_taylor_vortex_parametric_approx (steps = 3,return_stability=False, name=
             if guess == "second":
                 p_approx = Pn + gamma_32 * dt * Pn_p
             else:
-                p_approx = 0
+                p_approx = np.zeros_like(pn)
             u3 = uh3 - (a31+a32) * dt*f.Gpx(p_approx)
             v3 = vh3 - (a31+a32) * dt*f.Gpy(p_approx)
 

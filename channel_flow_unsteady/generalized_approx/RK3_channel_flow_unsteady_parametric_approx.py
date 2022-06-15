@@ -179,6 +179,10 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
                 gamma_22 = 0
                 gamma_32 = a32 * a21 / c3
 
+            elif (d2==1 and d3 ==1):
+                gamma_22 = 0
+                gamma_32 = 0
+
             print("general approx")
             print("gamma_22=", gamma_22)
             print("gamma_32=", gamma_32)
@@ -230,7 +234,6 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
         if d2 == 1:
             print('        pressure projection stage{} = True'.format(2))
             u2, v2, _, iter1 = f.ImQ_bcs(uh2, vh2, Coef, pn, p_bcs, ci = a21)
-            p_approx = np.zeros_like(pn)
             print('        iterations stage 2 = ', iter1)
         elif d2 == 0:
             if guess == "second":
@@ -265,7 +268,6 @@ def RK3_channel_flow_unsteady_parametric_approx (steps = 3,return_stability=Fals
         if d3 == 1:
             print('        pressure projection stage{} = True'.format(3))
             u3, v3, _, iter1 = f.ImQ_bcs(uh3, vh3, Coef, pn, p_bcs, ci = a31+a32)
-            p_approx = np.zeros_like(pn)
             print('        iterations stage 3 = ', iter1)
         elif d3 == 0:
             if guess == "second":
