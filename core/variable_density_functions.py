@@ -3,174 +3,201 @@ from scipy.optimize import newton
 import scipy.sparse
 import scipy.sparse.linalg
 import pyamg
-import time
-from core.singleton_classes import RK4, RK3, RK2
 
+class SpatialOperators:
+    probDescription = None
+
+    @staticmethod
+    def set_problemDescription(value):
+        SpatialOperators.probDescription = value
+
+    class FieldSlice:
+        P = np.s_[1:-1,1:-1]
+        E = np.s_[1:-1,2:]
+        W = np.s_[1:-1,:-2]
+        N = np.s_[2:,1:-1]
+        S = np.s_[:-2,1:-1]
+        NE = np.s_[2:, 2:]
+        NW = np.s_[2:, :-2]
+        SE = np.s_[:-2, 2:]
+        SW = np.s_[:-2, :-2]
+
+    @staticmethod
+    def View(field, direction):
+        if direction == "P":
+            return field[SpatialOperators.FieldSlice.P]
+        elif direction == "E":
+            return field[SpatialOperators.FieldSlice.E]
+        elif direction == "W":
+            return field[SpatialOperators.FieldSlice.W]
+        elif direction == "N":
+            return field[SpatialOperators.FieldSlice.N]
+        elif direction == "S":
+            return field[SpatialOperators.FieldSlice.S]
+        elif direction == "NE":
+            return field[SpatialOperators.FieldSlice.NE]
+        elif direction == "NW":
+            return field[SpatialOperators.FieldSlice.NW]
+        elif direction == "SE":
+            return field[SpatialOperators.FieldSlice.SE]
+        elif direction == "SW":
+            return field[SpatialOperators.FieldSlice.SW]
+
+    @staticmethod
+    def Interpolate(field,face):
+        face_field = np.zeros_like(field)
+
+        if face == "e":
+            face_field[SpatialOperators.FieldSlice.P] = 0.5 * (field[SpatialOperators.FieldSlice.P] + field[SpatialOperators.FieldSlice.E])
+        elif face == "w":
+            face_field[SpatialOperators.FieldSlice.P] = 0.5 * (field[SpatialOperators.FieldSlice.P] + field[SpatialOperators.FieldSlice.W])
+        elif face == "n":
+            face_field[SpatialOperators.FieldSlice.P] = 0.5 * (field[SpatialOperators.FieldSlice.P] + field[SpatialOperators.FieldSlice.N])
+        elif face == "s":
+            face_field[SpatialOperators.FieldSlice.P] = 0.5 * (field[SpatialOperators.FieldSlice.P] + field[SpatialOperators.FieldSlice.S])
+
+        return face_field
+
+    class Calculus:
+        @staticmethod
+        def div_vect(x_comp, y_comp):
+            dx = SpatialOperators.probDescription.dx
+            dy = SpatialOperators.probDescription.dy
+
+            x_comp_e = SpatialOperators.View(x_comp, "E")
+            x_comp_w = SpatialOperators.View(x_comp, "P")
+            y_comp_n = SpatialOperators.View(y_comp, "N")
+            y_comp_s = SpatialOperators.View(y_comp, "P")
+
+            div_vect_phi = np.zeros_like(x_comp)
+            div_vect_phi[SpatialOperators.FieldSlice.P] = (x_comp_e - x_comp_w) / dx + (y_comp_n - y_comp_s) / dy
+            return div_vect_phi
+
+        @staticmethod
+        def flux(velocity_vect,Scalar, face):
+            velocity_x, velocity_y = velocity_vect
+            face_flux = np.zeros_like(Scalar)
+
+            if face == "e":
+                velocity_x_east = SpatialOperators.View(velocity_x, "E")
+                scalar_east = SpatialOperators.View(SpatialOperators.Interpolate(Scalar,"e"),"P")
+                face_flux[SpatialOperators.FieldSlice.P] = velocity_x_east * scalar_east
+            elif face == "w":
+                velocity_x_west = SpatialOperators.View(velocity_x, "W")
+                scalar_west = SpatialOperators.View(SpatialOperators.Interpolate(Scalar, "w"),"P")
+                face_flux[SpatialOperators.FieldSlice.P] = velocity_x_west * scalar_west
+            elif face == "n":
+                velocity_y_north = SpatialOperators.View(velocity_y, "N")
+                scalar_north = SpatialOperators.View(SpatialOperators.Interpolate(Scalar, "n"),"P")
+                face_flux[SpatialOperators.FieldSlice.P] = velocity_y_north * scalar_north
+            elif face == "s":
+                velocity_y_south = SpatialOperators.View(velocity_y, "S")
+                scalar_south = SpatialOperators.View(SpatialOperators.Interpolate(Scalar, "s"),"P")
+                face_flux[SpatialOperators.FieldSlice.P] = velocity_y_south * scalar_south
+
+            return face_flux
+
+        @staticmethod
+        def div_flux(u, v, phi):
+            dx = SpatialOperators.probDescription.dx
+            dy = SpatialOperators.probDescription.dy
+
+            flux_east = SpatialOperators.View(SpatialOperators.Calculus.flux((u,v),phi,"e"),"P")
+            flux_west = SpatialOperators.View(SpatialOperators.Calculus.flux((u,v),phi,"w"),"P")
+            flux_north = SpatialOperators.View(SpatialOperators.Calculus.flux((u,v),phi,"n"),"P")
+            flux_south = SpatialOperators.View(SpatialOperators.Calculus.flux((u,v),phi,"s"),"P")
+
+            div_u_phi = np.zeros_like(phi)
+            div_u_phi[SpatialOperators.FieldSlice.P] = (flux_east - flux_west) / dx + (flux_north - flux_south) / dy
+            return div_u_phi
+
+        @staticmethod
+        def GradXScalar(field):
+            dx = SpatialOperators.probDescription.dx
+            gx = np.zeros_like(field)
+            gx[SpatialOperators.FieldSlice.P] = (SpatialOperators.View(field, "P") - SpatialOperators.View(field, "W")) / dx
+            return gx
+
+        @staticmethod
+        def GradYScalar(field):
+            dy = SpatialOperators.probDescription.dy
+            gy = np.zeros_like(field)
+            gy[SpatialOperators.FieldSlice.P] = (SpatialOperators.View(field, "P") - SpatialOperators.View(field, "S")) / dy
+            return gy
+
+class BoundaryConditions:
+
+    @staticmethod
+    def periodic_x(f):
+        # set periodicity in x
+        f[:, -1] = f[:, 1]
+        f[:, 0] = f[:, -2]
+
+    @staticmethod
+    def periodic_y(f):
+        # set periodicity in y
+        f[-1, :] = f[1, :]
+        f[0, :] = f[-2, :]
+
+    @staticmethod
+    def periodic(f):
+        # set periodicity in x
+        BoundaryConditions.periodic_x(f)
+        # set periodicity in y
+        BoundaryConditions.periodic_y(f)
 
 class vardenfunc:
     def __init__(self, probDescription,bcs_type=None):
         self.probDescription = probDescription
         self.bcs_type = bcs_type
 
-    def periodic_scalar(self, f):
-        # set periodicity on the scalar
-        f[-1, :] = f[1, :]
-        f[0, :] = f[-2, :]
-        f[:, -1] = f[:, 1]
-        f[:, 0] = f[:, -2]
-
-    def periodic_u(self, u):
-        # set periodicity in x
-        u[:, -1] = u[:, 1]
-        u[:, 0] = u[:, -2]
-        # set periodicity in y
-        u[-1, :] = u[1, :]
-        u[0, :] = u[-2, :]
-
-    def periodic_v(self, v):
-        # set periodicity in y
-        v[-1, :] = v[1, :]
-        v[0, :] = v[-2, :]
-        # set periodicity in x
-        v[:, -1] = v[:, 1]
-        v[:, 0] = v[:, -2]
-
-    def View(self,field,direction):
-        if direction == "P":
-            return field[1:-1,1:-1]
-        elif direction =="E":
-            return field[1:-1,2:]
-        elif direction == "W":
-            return field[1:-1,:-2]
-        elif direction == "N":
-            return field[2:,1:-1]
-        elif direction == "S":
-            return field[:-2,1:-1]
-        elif direction == "NE":
-            return field[2:,2:]
-        elif direction == "NW":
-            return field[2:,:-2]
-        elif direction == "SE":
-            return field[:-2,2:]
-        elif direction == "SW":
-            return field[:-2,:-2]
-
-    def XfluxView(self,field,direction):
-        if direction == "e":
-            return self.View(field, "E")
-        elif direction =="w":
-            return self.View(field, "P")
-
-    def YfluxView(self,field,direction):
-        if direction == "n":
-            return self.View(field, "N")
-        elif direction == "s":
-            return self.View(field, "P")
-
-    def interpSvol(self,phi,direction):
-        if direction=="e":
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "E"))
-        elif direction=="w":
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "W"))
-
-        elif direction=="n":
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "N"))
-        elif direction=="s":
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "S"))
-
-    def interpYvol(self,phi,direction):
-        if direction=="e": # interpolate the y velocity to the east cell corners
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "E"))
-        elif direction=="w": # interpolate the y velocity to the west cell corners
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "W"))
-
-    def interpXvol(self,phi,direction):
-        if direction=="n": # interpolate the x velocity to the north cell corners ( it is the same as the east cell corners)
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "N"))
-        elif direction=="s": # interpolate the x velocity to the south cell corners ( it is the same as the east cell corners)
-            return 0.5 * (self.View(phi, "P") + self.View(phi, "S"))
-
-    def div(self,u,v,phi):
+    def xConvection(self,u,v,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
+        density_e = SpatialOperators.View(density,"P") # represents the east value
+        density_w = SpatialOperators.View(density,"W")
+        density_n = 0.25 * ( SpatialOperators.View(density,"P") + SpatialOperators.View(density,"N")
+                             + SpatialOperators.View(density,"NW") + SpatialOperators.View(density,"W") )
+        density_s = 0.25 * ( SpatialOperators.View(density,"P") + SpatialOperators.View(density,"S")
+                             + SpatialOperators.View(density,"SW") + SpatialOperators.View(density,"W") )
 
-        phie = self.interpSvol(phi, "e")
-        phiw = self.interpSvol(phi, "w")
-        phin = self.interpSvol(phi, "n")
-        phis = self.interpSvol(phi, "s")
+        ue = 0.5 * (SpatialOperators.View(u,"E") + SpatialOperators.View(u,"P"))
+        uw = 0.5 * (SpatialOperators.View(u,"W") + SpatialOperators.View(u,"P"))
 
-        ue = self.XfluxView(u, "e")  # uE
-        uw = self.XfluxView(u, "w")  # uP
-        un = self.YfluxView(v, "n")  # vN
-        us = self.YfluxView(v, "s")  # vP
+        un = 0.5 * (SpatialOperators.View(u,"N") + SpatialOperators.View(u,"P"))
+        us = 0.5 * (SpatialOperators.View(u,"S") + SpatialOperators.View(u,"P"))
 
-        div_u_phi = np.zeros_like(phi)
-        div_u_phi[1:-1, 1:-1] = (ue * phie - uw * phiw) / dx  + (un * phin - us * phis) / dy
-        return div_u_phi
-
-    def div_vect(self,x_comp,y_comp):
-        dx = self.probDescription.dx
-        dy = self.probDescription.dy
-
-        x_comp_e = self.XfluxView(x_comp, "e")  # E
-        x_comp_w = self.XfluxView(x_comp, "w")  # P
-        y_comp_n = self.YfluxView(y_comp, "n")  # N
-        y_comp_s = self.YfluxView(y_comp, "s")  # P
-
-        div_vect_phi = np.zeros_like(x_comp)
-        div_vect_phi[1:-1,1:-1] = (x_comp_e - x_comp_w ) / dx + (y_comp_n - y_comp_s ) / dy
-        return div_vect_phi
-
-    def xConvection(self,u,v):
-        dx = self.probDescription.dx
-        dy = self.probDescription.dy
-        nx = self.probDescription.nx
-        ny = self.probDescription.ny
-        # ue = self.XfluxView(u, "e")
-        # uw = self.XfluxView(u, "w")
-        # un = self.interpXvol(u, "n")
-        # us = self.interpXvol(u, "s")
-        # vn =  self.YfluxView(v,"n")
-        # vs =  self.YfluxView(v,"s")
-
-        ue = 0.5 * (self.View(u,"E") + self.View(u,"P"))
-        uw = 0.5 * (self.View(u,"W") + self.View(u,"P"))
-
-        un = 0.5 * (self.View(u,"N") + self.View(u,"P"))
-        us = 0.5 * (self.View(u,"S") + self.View(u,"P"))
-
-        vn = 0.5 * (self.View(v,"NW") + self.View(v,"N"))
-        vs = 0.5 * (self.View(v,"W") + self.View(v,"P"))
+        vn = 0.5 * (SpatialOperators.View(v,"NW") + SpatialOperators.View(v,"N"))
+        vs = 0.5 * (SpatialOperators.View(v,"W") + SpatialOperators.View(v,"P"))
 
         convection = np.zeros_like(u)
-        convection[1:-1, 1:-1] = - (ue * ue - uw * uw) / dx - (un * vn - us * vs) / dy
+        convection[1:-1, 1:-1] = - (ue * (density_e * ue) - uw * (density_w * uw)) / dx - (vn * (un * density_n)   - vs * (density_s * us) ) / dy
         return convection
-        # return - (ue * ue - uw * uw) / dx - (un * vn - us * vs) / dy
 
-    def yConvection(self,u,v):
+    def yConvection(self,u,v,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
-        nx = self.probDescription.nx
-        ny = self.probDescription.ny
-        # vn = self.YfluxView(v,"n")
-        # vs = self.YfluxView(v,"s")
-        # ve = self.interpYvol(v,"e")
-        # vw = self.interpYvol(v,"w")
-        # ue = self.XfluxView(u,"e")
-        # uw = self.XfluxView(u,"w")
 
-        ve = 0.5 * (self.View(v,"E") + self.View(v,"P"))
-        vw = 0.5 * (self.View(v,"W") + self.View(v,"P"))
+        density_e =  0.25 * (SpatialOperators.View(density, "P") + SpatialOperators.View(density, "E")
+                            + SpatialOperators.View(density, "S") + SpatialOperators.View(density, "SE"))
 
-        ue = 0.5 * (self.View(u,"E") + self.View(u,"SE"))
-        uw = 0.5 * (self.View(u,"P") + self.View(u,"S"))
+        density_w = 0.25 * (SpatialOperators.View(density, "P") + SpatialOperators.View(density, "W")
+                            + SpatialOperators.View(density, "SW") + SpatialOperators.View(density, "S"))
 
-        vn = 0.5 * (self.View(v,"N") + self.View(v,"P"))
-        vs = 0.5 * (self.View(v,"S") + self.View(v,"P"))
+        density_n = SpatialOperators.View(density,"P")
+        density_s = SpatialOperators.View(density,"S")
+
+        ve = 0.5 * (SpatialOperators.View(v,"E") + SpatialOperators.View(v,"P"))
+        vw = 0.5 * (SpatialOperators.View(v,"W") + SpatialOperators.View(v,"P"))
+
+        ue = 0.5 * (SpatialOperators.View(u,"E") + SpatialOperators.View(u,"SE"))
+        uw = 0.5 * (SpatialOperators.View(u,"P") + SpatialOperators.View(u,"S"))
+
+        vn = 0.5 * (SpatialOperators.View(v,"N") + SpatialOperators.View(v,"P"))
+        vs = 0.5 * (SpatialOperators.View(v,"S") + SpatialOperators.View(v,"P"))
         convection = np.zeros_like(u)
-        convection[1:-1, 1:-1] = - (ue * ve - uw * vw) / dx - (vn * vn - vs * vs) / dy
+        convection[1:-1, 1:-1] = - (ue * (density_e * ve) - uw * (density_w * vw)) / dx - (vn * (density_n * vn) - vs * (density_s * vs)) / dy
         return convection
-        # return - (ue * ve - uw * vw) / dx - (vn * vn - vs * vs) / dy
 
     def Newton_solver(self,guess,func, tol=1e-10,maxiter=100):
         shape = guess.shape
@@ -181,13 +208,13 @@ class vardenfunc:
     def strain_xx(self,u):
         dx = self.probDescription.dx
         strain_xx_cc = np.zeros_like(u)
-        strain_xx_cc[1:-1,1:-1] = - 2 * (self.View(u, "E") - self.View(u, "P"))/dx
+        strain_xx_cc[1:-1,1:-1] = - 2 * (SpatialOperators.View(u, "E") - SpatialOperators.View(u, "P"))/dx
         return strain_xx_cc
 
     def strain_yy(self,v):
         dy = self.probDescription.dy
         strain_yy_cc = np.zeros_like(v)
-        strain_yy_cc[1:-1,1:-1] = - 2 * (self.View(v, "N") - self.View(v, "P"))/dy
+        strain_yy_cc[1:-1,1:-1] = - 2 * (SpatialOperators.View(v, "N") - SpatialOperators.View(v, "P"))/dy
         return strain_yy_cc
 
     def strain_xy(self,u,v):
@@ -195,33 +222,33 @@ class vardenfunc:
         dy = self.probDescription.dy
 
         strain_xy_corner = np.zeros_like(u)
-        strain_xy_corner[1:-1,1:-1] = - (self.View(v,"E") - self.View(v,"P"))/dx \
-                                      - (self.View(u,"N") - self.View(u,"P"))/dy
+        strain_xy_corner[1:-1,1:-1] = - (SpatialOperators.View(v,"E") - SpatialOperators.View(v,"P"))/dx \
+                                      - (SpatialOperators.View(u,"N") - SpatialOperators.View(u,"P"))/dy
         return strain_xy_corner
 
-    def xMomPartialRHS(self,u,v,viscosity):
+    def xMomPartialRHS(self,u,v,viscosity,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
         xmom_partial = np.zeros_like(u)
-        tempxx = viscosity * (self.strain_xx(u) + 2/3 * self.div_vect(u,v))
+        tempxx = viscosity * (self.strain_xx(u) + 2/3 * SpatialOperators.Calculus.div_vect(u,v))
         tempyx = viscosity * self.strain_xy(u,v)
-        # xmom_partial[1:-1,1:-1] = -(self.View(tempxx,"E") - self.View(tempxx,"P"))/dx \
-        #                           - (self.View(tempyx,"N") - self.View(tempyx,"P"))/dy
+        # xmom_partial[1:-1,1:-1] = -(SpatialOperators.View(tempxx,"E") - SpatialOperators.View(tempxx,"P"))/dx \
+        #                           - (SpatialOperators.View(tempyx,"N") - SpatialOperators.View(tempyx,"P"))/dy
         # add convection
-        xmom_partial = self.xConvection(u,v) + viscosity * self.laplacian(u)
+        xmom_partial = self.xConvection(u,v,density) + viscosity * self.laplacian(u)
         return xmom_partial
 
-    def yMomPartialRHS(self, u, v, viscosity):
+    def yMomPartialRHS(self, u, v, viscosity,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
         ymom_partial = np.zeros_like(v)
-        tempyy = viscosity * (self.strain_yy(v) + 2/3 * self.div_vect(u,v))
+        tempyy = viscosity * (self.strain_yy(v) + 2/3 * SpatialOperators.Calculus.div_vect(u,v))
         tempxy = viscosity * self.strain_xy(u, v)
-        # ymom_partial[1:-1, 1:-1] = - (self.View(tempxy, "E") - self.View(tempxy, "P")) / dx \
-        #                             -(self.View(tempyy, "N") - self.View(tempyy, "P")) / dy
+        # ymom_partial[1:-1, 1:-1] = - (SpatialOperators.View(tempxy, "E") - SpatialOperators.View(tempxy, "P")) / dx \
+        #                             -(SpatialOperators.View(tempyy, "N") - SpatialOperators.View(tempyy, "P")) / dy
 
         # add convection
-        ymom_partial = self.yConvection(u,v) + viscosity * self.laplacian(v)
+        ymom_partial = self.yConvection(u,v,density) + viscosity * self.laplacian(v)
         return ymom_partial
 
 
@@ -285,7 +312,7 @@ class vardenfunc:
         nx = self.probDescription.nx
         ny = self.probDescription.ny
 
-        divuhat = self.div_vect(uh, vh)
+        divuhat = SpatialOperators.Calculus.div_vect(uh, vh)
         prhs = divuhat[1:-1, 1:-1]/ dt / ci
         rhs = prhs.ravel()
 
@@ -300,18 +327,6 @@ class vardenfunc:
 
         return p
 
-    def GradXScalar(self,field):
-        dx = self.probDescription.dx
-        gx = np.zeros_like(field)
-        gx[1:-1,1:-1] = (self.View(field,"P") - self.View(field,"W"))/dx
-        return gx
-
-    def GradYScalar(self,field):
-        dy = self.probDescription.dy
-        gy = np.zeros_like(field)
-        gy[1:-1, 1:-1] = (self.View(field,"P") - self.View(field,"S"))/dy
-        return gy
-
     def ImQ(self, uh, vh, Coef, p0, ci=1, tol=None, atol=None):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
@@ -320,7 +335,7 @@ class vardenfunc:
         ny = self.probDescription.ny
         unp1 = np.zeros_like(uh)
         vnp1 = np.zeros_like(vh)
-        divuhat = self.div_vect(uh, vh)
+        divuhat = SpatialOperators.Calculus.div_vect(uh, vh)
 
         prhs = 1.0 / dt/ci * divuhat[1:-1, 1:-1]
 
@@ -345,8 +360,8 @@ class vardenfunc:
         self.periodic_scalar(p)
 
         # time advance
-        unp1[1:-1,1:-1] = uh[1:-1,1:-1] - ci * dt * (self.View(p,"P") - self.View(p,"W"))/dx
-        vnp1[1:-1,1:-1] = vh[1:-1,1:-1] - ci * dt * (self.View(p,"P") - self.View(p,"S")) / dy
+        unp1[1:-1,1:-1] = uh[1:-1,1:-1] - ci * dt * (SpatialOperators.View(p,"P") - SpatialOperators.View(p,"W"))/dx
+        vnp1[1:-1,1:-1] = vh[1:-1,1:-1] - ci * dt * (SpatialOperators.View(p,"P") - SpatialOperators.View(p,"S")) / dy
         # unp1[1:-1, 1:] = uh[1:-1, 1:] - ci*dt * (p[1:-1, 1:] - p[1:-1, :-1]) / dx
         # vnp1[1:, 1:-1] = vh[1:, 1:-1] - ci*dt * (p[1:, 1:-1] - p[:-1, 1:-1]) / dy
 
@@ -361,9 +376,9 @@ class vardenfunc:
 
         lap = np.zeros_like(phi)
 
-        lap[1:-1, 1:-1] = ((self.View(phi, "E") - 2.0 * self.View(phi, "P") + self.View(phi, "W")) / dx / dx + (
-                self.View(phi, "N") - 2.0 * self.View(phi, "P") + self.View(phi, "S")) / dy / dy)
+        lap[1:-1, 1:-1] = ((SpatialOperators.View(phi, "E") - 2.0 * SpatialOperators.View(phi, "P") + SpatialOperators.View(phi, "W")) / dx / dx + (
+                SpatialOperators.View(phi, "N") - 2.0 * SpatialOperators.View(phi, "P") + SpatialOperators.View(phi, "S")) / dy / dy)
         return lap
 
     def scalar_rhs(self,diff_coef,u,v,phi):
-        return - self.div(u,v,phi) + diff_coef * self.laplacian(phi)
+        return - SpatialOperators.Calculus.div_flux(u,v,phi) + diff_coef * self.laplacian(phi)

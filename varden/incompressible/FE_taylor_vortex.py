@@ -1,6 +1,6 @@
 import numpy as np
 from core.functions import func
-from core.variable_density_functions import vardenfunc
+from core.variable_density_functions import vardenfunc, SpatialOperators, BoundaryConditions
 import time
 from core import singleton_classes as sc
 
@@ -8,6 +8,13 @@ from core import singleton_classes as sc
 def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
     # problem description
     probDescription = sc.ProbDescription()
+    SpatialOperators.set_problemDescription(probDescription)
+
+    # Defining aliases
+    bcs = BoundaryConditions
+    sops = SpatialOperators
+    fvc = sops.Calculus
+
     f = vardenfunc(probDescription, 'periodic')
     dt = probDescription.get_dt()
     μ = probDescription.get_mu()
@@ -41,12 +48,13 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
     v0 = np.zeros([ny + 2, nx + 2])  # include ghost cells
     u0[1:-1, 1:] = uexact(a, b, xu, yu, 0)
     v0[1:, 1:-1] = vexact(a, b, xv, yv, 0)
-    f.periodic_u(u0)
-    f.periodic_v(v0)
+    bcs.periodic(u0)
+    bcs.periodic(v0)
 
     # define viscosity
     mu = np.ones([ny + 2, nx + 2]) * μ  # include ghost cells
-
+    # define density
+    density = np.ones([ny + 2, nx + 2])
     # initialize pressure
     p0 = np.zeros_like(u0)
 
@@ -57,7 +65,7 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
     sigy = 0.25
     phi0[1:-1,1:-1] = A * np.exp(-(xcc-lx/2)**2/2/sigx**2 -(ycc-ly/2)**2/2/sigy**2)
 
-    f.periodic_scalar(phi0)
+    bcs.periodic(phi0)
 
     # define the matrix
     Coef = f.A()
@@ -79,26 +87,24 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
         v_n = vsol[-1].copy()
         phi_n = phisol[-1].copy()
         phi_np1 = phi_n +  dt * f.scalar_rhs(diff_coef,u0, v0,phi_n)
-        f.periodic_scalar(phi_np1)
+        bcs.periodic(phi_np1)
 
-        uh = u_n + dt * f.xMomPartialRHS(u_n, v_n,mu)
-        vh = v_n + dt * f.yMomPartialRHS(u_n, v_n,mu)
+        uh = u_n + dt * f.xMomPartialRHS(u_n, v_n,mu,density)
+        vh = v_n + dt * f.yMomPartialRHS(u_n, v_n,mu,density)
 
-        f.periodic_u(uh)
-        f.periodic_v(vh)
+        bcs.periodic(uh)
+        bcs.periodic(vh)
 
         # pressure equation
         p = f.Psolve(uh,vh,ci=1,MatCoef=Coef,atol=1e-10)
-        f.periodic_scalar(p)
+        bcs.periodic(p)
 
-        u_np1 = uh - dt * f.GradXScalar(p)
-        v_np1 = vh - dt * f.GradYScalar(p)
-        f.periodic_u(u_np1)
-        f.periodic_v(v_np1)
+        u_np1 = uh - dt * fvc.GradXScalar(p)
+        v_np1 = vh - dt * fvc.GradYScalar(p)
+        bcs.periodic(u_np1)
+        bcs.periodic(v_np1)
 
-        # u_np1, v_np1, press, _ = f.ImQ(uh, vh, Coef, p_n)
-
-        div_np1 = np.linalg.norm(f.div_vect(u_np1, v_np1).ravel())
+        div_np1 = np.linalg.norm(fvc.div_vect(u_np1, v_np1).ravel())
         # div_np1 = np.linalg.norm(f.div_vect(u0, v0).ravel())
         print("div = {}".format(div_np1))
         phisol.append(phi_np1)
@@ -113,7 +119,7 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
         if count%1 ==0:
             # plt.contourf(vsol[-1][1:-1,1:])
             # plt.contourf(f.div_vect(u_np1,v_np1))
-            plt.contourf(f.View(f.GradXScalar(p),"P"))
+            plt.contourf(sops.View(fvc.GradXScalar(p),"P"))
             plt.colorbar()
             plt.show()
 
