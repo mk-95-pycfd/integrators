@@ -151,6 +151,29 @@ class vardenfunc:
         self.probDescription = probDescription
         self.bcs_type = bcs_type
 
+    def timeStepSelector(self,u,v,viscosity,density,inner_scale=1,outer_scale=1):
+        #compute the local cell Reynolds numbers
+        dx = self.probDescription.dx
+        dy = self.probDescription.dy
+        rho = SpatialOperators.View(density,"P")
+        mu = SpatialOperators.View(viscosity,"P")
+        ucc = 0.5 * np.abs(SpatialOperators.View(u,"P") + SpatialOperators.View(u,"E"))
+        vcc = 0.5 * np.abs(SpatialOperators.View(v,"P") + SpatialOperators.View(v,"N"))
+        Rex = rho*ucc*dx/mu
+        Rey = rho*vcc*dy/mu
+        u_dx = ucc/dx
+        v_dy = vcc/dy
+
+        # FE
+        sum_outer = (u_dx * Rex + v_dy * Rey) / 2
+        sum_inner = 2 * (mu/rho/dx/dx + mu/rho/dy/dy)
+        dt_inner_local = inner_scale/sum_inner
+        dt_outer_local = outer_scale/sum_outer
+        dt_local = np.minimum(dt_inner_local,dt_outer_local)
+        stable_dt = np.min(dt_local)
+        print("Crx={}, Cry={}".format(np.max(ucc*stable_dt/dx),np.max(vcc*stable_dt/dy)))
+        self.probDescription.set_dt(stable_dt)
+
     def xConvection(self,u,v,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
@@ -205,50 +228,58 @@ class vardenfunc:
         sol = newton(func,guess_as_1d,tol=tol,maxiter=maxiter)
         return sol.reshape(shape)
 
-    def strain_xx(self,u):
-        dx = self.probDescription.dx
-        strain_xx_cc = np.zeros_like(u)
-        strain_xx_cc[1:-1,1:-1] = - 2 * (SpatialOperators.View(u, "E") - SpatialOperators.View(u, "P"))/dx
-        return strain_xx_cc
-
-    def strain_yy(self,v):
-        dy = self.probDescription.dy
-        strain_yy_cc = np.zeros_like(v)
-        strain_yy_cc[1:-1,1:-1] = - 2 * (SpatialOperators.View(v, "N") - SpatialOperators.View(v, "P"))/dy
-        return strain_yy_cc
-
-    def strain_xy(self,u,v):
-        dx = self.probDescription.dx
-        dy = self.probDescription.dy
-
-        strain_xy_corner = np.zeros_like(u)
-        strain_xy_corner[1:-1,1:-1] = - (SpatialOperators.View(v,"E") - SpatialOperators.View(v,"P"))/dx \
-                                      - (SpatialOperators.View(u,"N") - SpatialOperators.View(u,"P"))/dy
-        return strain_xy_corner
+    ## to avoid applying bcs on the strain we write the momrhs in terms of the velocity
+    #  by assuming constant viscosity across the domain
+    # def strain_xx(self,u,v,viscosity):
+    #     dx = self.probDescription.dx
+    #     strain_xx_cc = np.zeros_like(u)
+    #     strain_xx_cc[SpatialOperators.FieldSlice.P] = viscosity[SpatialOperators.FieldSlice.P]*(- 2 * (SpatialOperators.View(u, "E") - SpatialOperators.View(u, "P"))/dx \
+    #                               + 2/3 * SpatialOperators.View(SpatialOperators.Calculus.div_vect(u,v),"P"))
+    #     return strain_xx_cc
+    #
+    # def strain_yy(self,u,v,viscosity):
+    #     dy = self.probDescription.dy
+    #     strain_yy_cc = np.zeros_like(v)
+    #     strain_yy_cc[SpatialOperators.FieldSlice.P] =  viscosity[SpatialOperators.FieldSlice.P]*(- 2 * (SpatialOperators.View(v, "N") - SpatialOperators.View(v, "P"))/dy
+    #                                                                                             + 2/3 * SpatialOperators.View(SpatialOperators.Calculus.div_vect(u,v),"P"))
+    #     return strain_yy_cc
+    #
+    # def strain_xy(self,u,v,viscosity):
+    #     dx = self.probDescription.dx
+    #     dy = self.probDescription.dy
+    #
+    #     dvdx = (SpatialOperators.View(v,"E") + SpatialOperators.View(v,"NE") - SpatialOperators.View(v,"W") - SpatialOperators.View(v,"NW"))/dx/4
+    #     dudy =  (SpatialOperators.View(u,"N") + SpatialOperators.View(u,"NE") - SpatialOperators.View(u,"S") - SpatialOperators.View(u,"SE"))/dy/4
+    #     strain_xy_cc = np.zeros_like(u)
+    #     strain_xy_cc[SpatialOperators.FieldSlice.P] = - viscosity[SpatialOperators.FieldSlice.P]*(dvdx + dudy)
+    #     return strain_xy_cc
 
     def xMomPartialRHS(self,u,v,viscosity,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
-        xmom_partial = np.zeros_like(u)
-        tempxx = viscosity * (self.strain_xx(u) + 2/3 * SpatialOperators.Calculus.div_vect(u,v))
-        tempyx = viscosity * self.strain_xy(u,v)
-        # xmom_partial[1:-1,1:-1] = -(SpatialOperators.View(tempxx,"E") - SpatialOperators.View(tempxx,"P"))/dx \
-        #                           - (SpatialOperators.View(tempyx,"N") - SpatialOperators.View(tempyx,"P"))/dy
-        # add convection
-        xmom_partial = self.xConvection(u,v,density) + viscosity * self.laplacian(u)
+        dudxx = np.zeros_like(u)
+        dvdydx = np.zeros_like(u)
+        dudxx[SpatialOperators.FieldSlice.P] =  (SpatialOperators.View(u, "E") - 2.0 * SpatialOperators.View(u, "P")
+                                                 + SpatialOperators.View(u, "W")) / dx / dx
+        dvdydx[SpatialOperators.FieldSlice.P] = (SpatialOperators.View(v, "N") - SpatialOperators.View(v, "P")
+                                                 + SpatialOperators.View(v, "W") - SpatialOperators.View(v, "NW")) / dx / dy
+
+        xmom_partial = self.xConvection(u,v,density) + viscosity *(self.laplacian(u) + 1/3 *(dudxx + dvdydx ))
         return xmom_partial
 
     def yMomPartialRHS(self, u, v, viscosity,density):
         dx = self.probDescription.dx
         dy = self.probDescription.dy
-        ymom_partial = np.zeros_like(v)
-        tempyy = viscosity * (self.strain_yy(v) + 2/3 * SpatialOperators.Calculus.div_vect(u,v))
-        tempxy = viscosity * self.strain_xy(u, v)
-        # ymom_partial[1:-1, 1:-1] = - (SpatialOperators.View(tempxy, "E") - SpatialOperators.View(tempxy, "P")) / dx \
-        #                             -(SpatialOperators.View(tempyy, "N") - SpatialOperators.View(tempyy, "P")) / dy
+        dvdyy = np.zeros_like(u)
+        dudydx = np.zeros_like(u)
+
+        dvdyy[SpatialOperators.FieldSlice.P] = (SpatialOperators.View(v, "N") - 2.0 * SpatialOperators.View(v, "P")
+                                                + SpatialOperators.View(v,"S")) / dy / dy
+        dudydx[SpatialOperators.FieldSlice.P] = (SpatialOperators.View(u, "E") - SpatialOperators.View(u, "P")
+                                                 + SpatialOperators.View(u,"S") - SpatialOperators.View(u, "SE")) / dx / dy
 
         # add convection
-        ymom_partial = self.yConvection(u,v,density) + viscosity * self.laplacian(v)
+        ymom_partial = self.yConvection(u,v,density) + viscosity * (self.laplacian(v) + 1/3 *(dudydx + dvdyy ))
         return ymom_partial
 
 
