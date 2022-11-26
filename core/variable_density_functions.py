@@ -284,12 +284,18 @@ class vardenfunc:
 
 
 
-    def A(self):
+    def A(self,density):
         # todo: need to to  account for density variation and different bcs
         dx = self.probDescription.dx
         dy = self.probDescription.dy
         nx = self.probDescription.nx
         ny = self.probDescription.ny
+
+        density_E = SpatialOperators.View(density,"E")
+        density_W = SpatialOperators.View(density,"W")
+        density_N = SpatialOperators.View(density,"N")
+        density_S = SpatialOperators.View(density,"S")
+        density_P = SpatialOperators.View(density,"P")
         # build pressure coefficient matrix
         Ap = np.zeros([ny, nx])
         Ae = 1.0 / dx / dx * np.ones([ny, nx])
@@ -314,6 +320,12 @@ class vardenfunc:
         Anb[:-1, :] = 0
 
         Ap = -(Aw + Ae + An + As + Awb + Aeb)
+
+        Ae = Ae/ density_E
+        As = As/ density_S
+        An = An/ density_N
+        Aw = Aw/ density_W
+        Ap = Ap/ density_P
 
         n = nx * ny
         d0 = Ap.reshape(n)
@@ -413,3 +425,16 @@ class vardenfunc:
 
     def scalar_rhs(self,diff_coef,u,v,phi):
         return - SpatialOperators.Calculus.div_flux(u,v,phi) + diff_coef * self.laplacian(phi)
+
+    def scalar_upwind_convection(self,u,v,phi):
+        # weak form
+        ue = 0.5 * (SpatialOperators.View(u, "E") + SpatialOperators.View(u, "P"))
+        uw = 0.5 * (SpatialOperators.View(u, "W") + SpatialOperators.View(u, "P"))
+
+        un = 0.5 * (SpatialOperators.View(u, "N") + SpatialOperators.View(u, "P"))
+        us = 0.5 * (SpatialOperators.View(u, "S") + SpatialOperators.View(u, "P"))
+
+        vn = 0.5 * (SpatialOperators.View(v, "NW") + SpatialOperators.View(v, "N"))
+        vs = 0.5 * (SpatialOperators.View(v, "W") + SpatialOperators.View(v, "P"))
+
+        xvel_plus = 0.5 * (u )

@@ -68,7 +68,7 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
     bcs.periodic(phi0)
 
     # define the matrix
-    Coef = f.A()
+    Coef = f.A(density)
 
     # create storage
     phisol = []
@@ -80,13 +80,15 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
     psol = []
     psol.append(p0)
     while count < tend:
-        print('timestep:{}'.format(count+1))
-        print('-----------')
+        dt = probDescription.get_dt()
+        print('timestep:{}; time= {:4f}  dt={:7f}'.format(count+1,t,dt))
+        print('------------------------------------------')
         p_n = psol[-1].copy()
         u_n = usol[-1].copy()
         v_n = vsol[-1].copy()
         phi_n = phisol[-1].copy()
-        phi_np1 = phi_n +  dt * f.scalar_rhs(diff_coef,u0, v0,phi_n)
+        # phi_np1 = phi_n +  dt * f.scalar_rhs(diff_coef,np.ones_like(u0), np.ones_like(v0),phi_n)
+        phi_np1 = phi_n +  dt * f.scalar_rhs(0.0,np.ones_like(u0), np.zeros_like(v0),phi_n)
         bcs.periodic(phi_np1)
 
         uh = u_n + dt * f.xMomPartialRHS(u_n, v_n,mu,density)
@@ -95,6 +97,8 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
         bcs.periodic(uh)
         bcs.periodic(vh)
 
+        # update the coef matrix for the poisson equation
+        Coef = f.A(density)
         # pressure equation
         p = f.Psolve(uh,vh,ci=1,MatCoef=Coef,atol=1e-10)
         bcs.periodic(p)
@@ -115,11 +119,14 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
         count += 1
         t += dt
 
+        f.timeStepSelector(u_np1,v_np1,viscosity=mu,density=density,inner_scale=0.5,outer_scale=0.5)
+
         #plot of the pressure gradient in order to make sure the solution is correct
-        if count%1 ==0:
-            # plt.contourf(vsol[-1][1:-1,1:])
+        if count%100 ==0:
+            # plt.contourf(usol[-1][sops.FieldSlice.P])
+            plt.contourf(phisol[-1][sops.FieldSlice.P])
             # plt.contourf(f.div_vect(u_np1,v_np1))
-            plt.contourf(sops.View(fvc.GradXScalar(p),"P"))
+            # plt.contourf(sops.View(fvc.GradXScalar(p),"P"))
             plt.colorbar()
             plt.show()
 
@@ -129,6 +136,5 @@ def FE_Taylor_Vortex_scalar (steps=3, return_stability=False,alpha=0.99):
         return False, [], True, u_np1[1:-1, 1:-1].ravel()
 
 import matplotlib.pyplot as plt
-
-probDescription = sc.ProbDescription(N=[32,32],L=[1,1],μ =0.01,dt = 0.001)
+probDescription = sc.ProbDescription(N=[32,32],L=[1,1],μ =1e-1,dt = 1e-10)
 FE_Taylor_Vortex_scalar (steps = 2000)
